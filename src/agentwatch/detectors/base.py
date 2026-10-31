@@ -11,6 +11,7 @@ from typing import Iterable, Optional, Sequence
 
 from ..core.hashing import hash_bytes
 from ..core.schema import Artifact, Evidence, Finding, Rule
+from .context import classify, downgrade
 
 
 class Detector:
@@ -27,6 +28,7 @@ class Detector:
         detail: str,
         evidence: Optional[list] = None,
         severity: Optional[str] = None,
+        context: str = "",
     ) -> Finding:
         return Finding(
             rule_id=rule.rule_id,
@@ -38,6 +40,7 @@ class Detector:
             evidence=evidence or [],
             rule_version=rule.version,
             reproduce=f'aw sweep --rule {rule.rule_id} "{artifact.path}"',
+            context=context,
         )
 
 
@@ -74,5 +77,9 @@ def pattern_findings(
         first = matches[0]
         evidence = [_excerpt_evidence(artifact, text, first.start(), first.end(), label)]
         detail = "%s x%d (first at offset %d)" % (label, len(matches), first.start())
-        out.append(detector.finding(rule, artifact, detail, evidence, severity=severity))
+        ctx = classify(text, first.start(), first.end())
+        sev = downgrade(severity) if ctx else severity
+        if ctx:
+            detail += " [context=%s]" % ctx
+        out.append(detector.finding(rule, artifact, detail, evidence, severity=sev, context=ctx))
     return out

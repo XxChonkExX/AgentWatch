@@ -31,6 +31,7 @@ from .unicode_gates import (
 def build_detectors(
     freeze_manifest: dict | None = None,
     rules_dir: str | None = None,
+    sig_dir: str | None = None,
     scanners=None,
 ) -> list:
     # Imported here to keep the detector package importable without the
@@ -48,7 +49,7 @@ def build_detectors(
         MagicMismatchDetector(),
         ScriptObfuscationDetector(),
         CovertWhitespaceDetector(),
-        ScannerDetector(scanners=scanners, rules_dir=rules_dir),
+        ScannerDetector(scanners=scanners, rules_dir=rules_dir, sig_dir=sig_dir),
         FrozenGuardDetector(freeze_manifest),
         ThinkLeakDetector(),
         InjectionMarkerDetector(),

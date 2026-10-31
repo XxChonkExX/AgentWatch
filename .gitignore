@@ -10,3 +10,8 @@ venv/
 # local ledgers and sweep output are data, not source
 *.awledger
 sweeps/
+
+# signature databases are user-supplied (license + freshness); do not commit
+signatures/*
+!signatures/README.md
+!signatures/examples/

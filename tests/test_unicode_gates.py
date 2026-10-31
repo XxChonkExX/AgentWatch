@@ -50,6 +50,10 @@ class Confusable(unittest.TestCase):
     def test_confusable_negative(self):
         self.assertEqual(ConfusableDetector().run(art("note.txt", "paypal.com")), [])
 
+    def test_confusable_greek_math_negative(self):
+        # Greek letters are ordinary math notation, not homoglyphs.
+        self.assertEqual(ConfusableDetector().run(art("note.txt", "the \u0394PPL and \u03bbI terms")), [])
+
 
 if __name__ == "__main__":
     unittest.main()

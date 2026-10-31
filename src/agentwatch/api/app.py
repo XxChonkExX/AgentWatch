@@ -23,6 +23,7 @@ def create_app(
     ledger_dir: str | None = None,
     freeze_manifest: dict | None = None,
     rules_dir: str | None = None,
+    sig_dir: str | None = None,
 ):
     from fastapi import Body, FastAPI, HTTPException
 
@@ -53,7 +54,7 @@ def create_app(
             freeze = load_manifest(payload["freeze"])
         from ..cli.main import pick_collector
 
-        detectors = build_detectors(freeze, rules_dir=rules_dir)
+        detectors = build_detectors(freeze, rules_dir=rules_dir, sig_dir=sig_dir)
         engine = SweepEngine(detectors, ledger=ledger)
         collector = pick_collector(target, kind)
         result = engine.sweep(collector, target)

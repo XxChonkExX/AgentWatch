@@ -7,6 +7,7 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import context  # noqa: F401
+from awtest import pack_path  # noqa: E402
 
 from agentwatch.cli.main import main  # noqa: E402
 
@@ -50,6 +51,25 @@ class Cli(unittest.TestCase):
         with contextlib.redirect_stdout(buf):
             rc = main(["sweep", d, "--fail-on", "medium"])
         self.assertEqual(rc, 0)
+
+    def test_probe_list(self):
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            rc = main(["probe", "list", "agentic_v1"])
+        self.assertEqual(rc, 0)
+        self.assertIn("sha256", buf.getvalue())
+
+    def test_probe_freeze_and_verify(self):
+        import shutil
+
+        d = tempfile.mkdtemp()
+        dst = os.path.join(d, "p.jsonl")
+        shutil.copy(pack_path("workplace_v1"), dst)
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            self.assertEqual(main(["probe", "freeze", dst]), 0)
+            self.assertEqual(main(["probe", "verify", dst]), 0)
+        self.assertIn("OK", buf.getvalue())
 
 
 if __name__ == "__main__":

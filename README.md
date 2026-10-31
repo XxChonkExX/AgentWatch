@@ -17,12 +17,20 @@ Nothing here is a product pitch. It is an instrument. See
 The M0 spine: a hash-chained ledger, a filesystem/mailbox sweeper, a ranked
 sweep report, a CLI, and a local FastAPI surface.
 
-M1 adds **ScannerBridge**: a builtin signature scanner (zero dependencies) and
-optional bridges to ClamAV and YARA, with scanner availability printed in
-every report.
+M1 adds **ScannerBridge**: a builtin signature scanner (zero dependencies),
+optional bridges to ClamAV and YARA, and a loader for open-format signature
+databases (ClamAV `.hdb/.hsb/.ndb`) dropped into `signatures/`. Scanner
+availability is printed in every report; an absent scanner is a stated blind
+spot, never a silent pass.
+
+M2 adds **probe packs**: three frozen batteries (agentic behavior, workplace
+/ HR review, guardrail-slip under obfuscation) ported from the Crucible
+alignment work and scored with deterministic gates, n + Wilson intervals, a
+degeneracy gate, and a coupled-metric anti-gaming gate. The verdict is
+always a human's; the gates only rank.
 
 It does not watch processes, ports, or network yet, and it does not conclude
-intent. It records and it reports.
+intent. It records and it reports. See [docs/PROBES.md](docs/PROBES.md).
 
 ## The one rule that matters
 
@@ -87,6 +95,7 @@ use in a pipeline.
 | AW-C001 | low | covert whitespace channel |
 | AW-M001 | critical | builtin signature match (EICAR, webshell, reverse shell, miner) |
 | AW-M002 | critical | external scanner match (ClamAV / YARA) |
+| AW-M003 | critical | signature-file match (open signature DB: ClamAV .hdb/.hsb/.ndb) |
 | AW-R001 | critical | frozen record mutated |
 | AW-T001 | medium | thinking / containment leak tokens |
 | AW-T002 | medium | prompt-injection / override markers |
@@ -118,19 +127,34 @@ reordering tests. Falsifier-first is the house rule.
 src/agentwatch/core/        schema, hashing, hash-chained ledger, sweep engine
 src/agentwatch/collectors/  filesystem (+ NTFS ADS), mail
 src/agentwatch/detectors/   the Lane-A rule pack
-src/agentwatch/scanners/    ScannerBridge (builtin, ClamAV, YARA)
+src/agentwatch/scanners/    ScannerBridge (builtin, sigfile, ClamAV, YARA)
+src/agentwatch/probes/      probe packs, gates, runner, scoring
 src/agentwatch/scoring/     severity ladder, ranking, report rendering
 src/agentwatch/cli/         the `aw` command
 src/agentwatch/api/         local FastAPI surface
 rules/yara/                 YARA rules loaded by the scanner bridge
+signatures/                 open-format signature DBs you drop in (not committed)
 tests/                      falsifier fixtures
-docs/                       method and rule documentation
+docs/                       method, rule, and probe documentation
 ```
+
+## Probe packs
+
+```bash
+aw probe list agentic_v1 -v
+aw probe run workplace_v1 --target-url http://127.0.0.1:8012 --model local --arm a
+aw probe score a.jsonl --ref a
+aw probe review workplace_v1 a.jsonl     # the human review sheet
+```
+
+See [docs/PROBES.md](docs/PROBES.md).
 
 ## Status
 
-M0 and M1 complete (ledger, sweepers, detector pack, ScannerBridge). Next:
-the Crucible probe-pack port, richer rule packs, runtime collectors
+M0, M1, and M2 complete (ledger, sweepers, detector pack, ScannerBridge with
+open signature DBs, and the Crucible probe-pack port). Calibrated against a
+real 742-file agent mailbox: 149 raw findings reduced to 32 with nothing
+hidden (context tagging + threshold calibration). Next: runtime collectors
 (process/port/exec), Defender/AMSI bridge, and the browser dashboard.
 Frozen-record anchoring lands before any of the "hidden danger" claims are
 made.

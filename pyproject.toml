@@ -23,4 +23,4 @@ aw = "agentwatch.cli.main:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-agentwatch = ["py.typed"]
+agentwatch = ["probes/packs/*.jsonl", "probes/packs/*.json"]

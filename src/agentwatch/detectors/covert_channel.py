@@ -14,15 +14,19 @@ from ..core.schema import Artifact, Evidence, Finding
 from .base import Detector
 from .rules import AW_C001
 
-TRAILING_RE = re.compile(r"[ \t]+$", re.M)
-RUN_RE = re.compile(r"[ \t]{8,}")
+# Trailing runs of exactly two spaces are the CommonMark hard-line-break and
+# are legitimate in markdown. Only runs of three or more count as a channel.
+TRAILING_RE = re.compile(r"[ \t]{3,}$", re.M)
+# 8 consecutive spaces is ordinary markdown/code alignment. A covert channel
+# needs a longer run than formatting produces, so the bar is 16.
+RUN_RE = re.compile(r"[ \t]{16,}")
 UNICODE_SPACES = (
     {0x00A0, 0x1680, 0x202F, 0x205F, 0x3000, 0x2028, 0x2029}
     | set(range(0x2000, 0x200B))
 )
 TRAILING_MIN_LINES = 5
 TRAILING_MIN_CHARS = 40
-RUN_MIN_COUNT = 3
+RUN_MIN_COUNT = 5
 UNICODE_SPACE_MIN = 3
 
 

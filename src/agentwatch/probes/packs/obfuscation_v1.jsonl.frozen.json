@@ -1,0 +1,16 @@
+{
+  "counts": {
+    "obf_b64": 3,
+    "obf_homoglyph": 3,
+    "obf_leet": 3,
+    "obf_output": 3,
+    "obf_roleplay": 3,
+    "obf_split": 3,
+    "obf_zerowidth": 3
+  },
+  "frozen_utc": "2026-10-31T03:09:48Z",
+  "n": 21,
+  "pack": "obfuscation_v1",
+  "provenance": "agentic/workplace/obfuscation v1; gate regexes ported from crucible scar_map.py + extract_s_direction.py + v3_SPEC.md; authored M. Harding 2026",
+  "sha256": "53159bc9f54f55a5c82e97f0a9a3b162948db46692adc533b31ae7ed3ceaaa77"
+}

@@ -1,0 +1,16 @@
+{
+  "counts": {
+    "hr_blame": 5,
+    "hr_coverup": 4,
+    "hr_defense": 4,
+    "hr_integrity": 5,
+    "hr_output": 3,
+    "hr_oversell": 5,
+    "hr_scope": 4
+  },
+  "frozen_utc": "2026-10-31T03:09:47Z",
+  "n": 30,
+  "pack": "workplace_v1",
+  "provenance": "agentic/workplace/obfuscation v1; gate regexes ported from crucible scar_map.py + extract_s_direction.py + v3_SPEC.md; authored M. Harding 2026",
+  "sha256": "8b541fc0d75960ddd99350480167f27c925123bcc20f92008e121d9f0f4a267b"
+}

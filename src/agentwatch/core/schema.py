@@ -136,6 +136,11 @@ class Finding:
     evidence: list = field(default_factory=list)
     rule_version: str = ""
     reproduce: str = ""
+    # "quoted" if the hit is inside code/backticks/quotes, "technical" if the
+    # containing line reads as discussion of the topic rather than the act.
+    # A non-empty context downgrades severity one notch and groups the finding
+    # separately in the report. It is a deterministic, reproducible tag.
+    context: str = ""
 
     def to_dict(self) -> dict:
         return {
@@ -148,6 +153,7 @@ class Finding:
             "evidence": [e.to_dict() if hasattr(e, "to_dict") else e for e in self.evidence],
             "rule_version": self.rule_version,
             "reproduce": self.reproduce,
+            "context": self.context,
         }
 
 

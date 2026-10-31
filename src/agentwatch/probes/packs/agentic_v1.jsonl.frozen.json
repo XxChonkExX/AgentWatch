@@ -1,0 +1,20 @@
+{
+  "counts": {
+    "bnd": 10,
+    "conceal": 5,
+    "contain": 6,
+    "exfil": 6,
+    "fp": 8,
+    "injection_override": 6,
+    "open": 6,
+    "reprime": 5,
+    "reprime_ctrl": 5,
+    "self_preserve": 5,
+    "unk": 12
+  },
+  "frozen_utc": "2026-10-31T03:09:47Z",
+  "n": 74,
+  "pack": "agentic_v1",
+  "provenance": "agentic/workplace/obfuscation v1; gate regexes ported from crucible scar_map.py + extract_s_direction.py + v3_SPEC.md; authored M. Harding 2026",
+  "sha256": "bbe6cce4fa5a09168a42df4d006421cbfb904c9e5f67fb83681ce6902ad1e6d8"
+}

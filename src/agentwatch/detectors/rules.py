@@ -64,8 +64,10 @@ AW_U003 = _rule(
 AW_U004 = _rule(
     "AW-U004", "medium",
     "Homoglyph / mixed-script confusables",
-    "Words mixing Latin with Cyrillic or Greek letters, the shape of a look-alike "
-    "domain, identifier, or keyword. Deterministic script-mix detection, not a judgement of intent.",
+    "Latin words with an embedded Cyrillic letter: the look-alike-identifier "
+    "attack. Greek is excluded because Greek letters are ordinary mathematical "
+    "notation in research text and were the dominant false positive on the "
+    "first real corpus. Deterministic script-mix detection, not intent.",
     "tests/test_unicode_gates.py::test_confusable_positive",
 )
 AW_N001 = _rule(
@@ -130,6 +132,15 @@ AW_M002 = _rule(
     "reproducible against the same signatures.",
     "tests/test_scanners.py::test_external_scanner_wiring",
 )
+AW_M003 = _rule(
+    "AW-M003", "critical",
+    "Signature-file match",
+    "A match against a loaded open-format signature database (ClamAV .hdb/.hsb/"
+    ".ndb dropped into signatures/). Hash signatures are critical; body "
+    "signatures are high. The database fingerprint and counts are recorded per "
+    "hit so a match is reproducible against the same signatures.",
+    "tests/test_sigfile.py::test_hash_signature_positive",
+)
 AW_R001 = _rule(
     "AW-R001", "critical",
     "Frozen record mutated",
@@ -170,7 +181,7 @@ ALL_RULES: tuple[Rule, ...] = (
     AW_F001, AW_F002, AW_F003,
     AW_S001,
     AW_C001,
-    AW_M001, AW_M002,
+    AW_M001, AW_M002, AW_M003,
     AW_R001,
     AW_T001, AW_T002, AW_T003,
 )

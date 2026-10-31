@@ -107,6 +107,14 @@ class VariationSelectorDetector(Detector):
 
 
 class ConfusableDetector(Detector):
+    """Latin words with an embedded Cyrillic letter -- the homoglyph attack.
+
+    Greek is deliberately excluded: Greek letters (Sigma, Delta, lambda,
+    sigma) are ordinary mathematical notation in research text and were the
+    dominant false positive on the first real corpus. Cyrillic is the actual
+    look-alike source, so this gate is Cyrillic-focused.
+    """
+
     name = "unicode.confusable"
     rule = AW_U004
 
@@ -118,9 +126,9 @@ class ConfusableDetector(Detector):
         for m in WORD_RE.finditer(text):
             word = m.group(0)
             cp0 = [ord(c) for c in word]
-            non_latin = [cp for cp in cp0 if _is_cyrillic(cp) or _is_greek(cp)]
+            cyrillic = [cp for cp in cp0 if _is_cyrillic(cp)]
             latin = [cp for cp in cp0 if _is_latin(cp)]
-            if non_latin and latin:
+            if cyrillic and latin:
                 mixed.append((word, m.start()))
         if not mixed:
             return []
@@ -131,7 +139,7 @@ class ConfusableDetector(Detector):
                 path=artifact.path,
                 span=(idx, idx + len(word)),
                 excerpt_hash=hash_bytes(word.encode("utf-8", "ignore")),
-                note="mixed Latin + Cyrillic/Greek",
+                note="mixed Latin + Cyrillic",
             )
         ]
         return [self.finding(self.rule, artifact, detail, ev)]

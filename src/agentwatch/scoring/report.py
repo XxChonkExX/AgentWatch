@@ -102,7 +102,10 @@ def render_text(result: SweepResult, rule_filter: str | None = None) -> str:
         lines.append("No findings. This is not a clearance -- read the limits below.")
         lines.append("")
 
-    for f in ranked:
+    direct = [f for f in ranked if not getattr(f, "context", "")]
+    contextual = [f for f in ranked if getattr(f, "context", "")]
+
+    for f in direct:
         lines.append("[%s] %s  %s" % (f.severity, f.rule_id, f.title))
         lines.append("    target : %s" % f.target)
         lines.append("    detail : %s" % f.detail)
@@ -110,6 +113,17 @@ def render_text(result: SweepResult, rule_filter: str | None = None) -> str:
         if f.reproduce:
             lines.append("    repro  : %s" % f.reproduce)
         lines.append("")
+
+    if contextual:
+        lines.append("contextual signals (severity downgraded; text is about the")
+        lines.append("behaviour, or the hit is quoted/code -- for review, not alarm)")
+        lines.append("-" * 72)
+        for f in contextual:
+            lines.append("[%s] %s  %s" % (f.severity, f.rule_id, f.title))
+            lines.append("    target  : %s" % f.target)
+            lines.append("    detail  : %s" % f.detail)
+            lines.append("    context : %s" % getattr(f, "context", ""))
+            lines.append("")
 
     if result.scanner_status:
         lines.append("scanners")

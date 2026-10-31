@@ -23,6 +23,20 @@ class CovertWhitespace(unittest.TestCase):
     def test_whitespace_negative(self):
         self.assertEqual(CovertWhitespaceDetector().run(art("notes.txt", "clean\nlines\nhere")), [])
 
+    def test_markdown_hard_break_negative(self):
+        # Two trailing spaces is the CommonMark hard line break, not a channel.
+        text = "\n".join("line %d  " % i for i in range(10))
+        self.assertEqual(CovertWhitespaceDetector().run(art("notes.md", text)), [])
+
+    def test_internal_run_formatting_negative(self):
+        # 8-space runs are ordinary alignment, not a covert channel.
+        text = "col A        col B        col C        col D"
+        self.assertEqual(CovertWhitespaceDetector().run(art("table.md", text)), [])
+
+    def test_internal_run_channel_positive(self):
+        text = ("x" + " " * 20 + "y\n") * 6
+        self.assertIn("AW-C001", ids(CovertWhitespaceDetector().run(art("t.txt", text))))
+
 
 if __name__ == "__main__":
     unittest.main()

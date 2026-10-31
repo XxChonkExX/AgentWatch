@@ -20,6 +20,7 @@ finding was made.
 | AW-C001 | A | low | covert whitespace channel | `text` | `tests/test_covert_channel.py::test_trailing_positive` |
 | AW-M001 | A | critical | builtin signature match | `sample` | `tests/test_scanners.py::test_builtin_eicar_positive` |
 | AW-M002 | A | critical | external scanner signature match | `sample` | `tests/test_scanners.py::test_external_scanner_wiring` |
+| AW-M003 | A | critical | signature-file match (open signature DB) | `sample` | `tests/test_sigfile.py::test_hash_signature_positive` |
 | AW-R001 | A | critical | frozen record mutated | `manifest`, `sha256` | `tests/test_frozen_guard.py::test_frozen_positive` |
 | AW-T001 | A | medium | thinking / containment leak tokens | `text` | `tests/test_thinking_gate.py::test_leak_positive` |
 | AW-T002 | A | medium | prompt-injection / override markers | `text` | `tests/test_thinking_gate.py::test_injection_positive` |
@@ -29,11 +30,32 @@ finding was made.
 
 - Entropy: Shannon entropy > 7.5 bits/byte over >= 256 bytes, excluding files
   with binary/compressed extensions.
-- Encoded blobs: base64 runs >= 80 chars; hex runs >= 80 chars.
-- Covert whitespace: >= 5 lines with trailing whitespace and >= 40 trailing
-  chars total; >= 3 internal runs of 8+ spaces/tabs; >= 3 exotic Unicode spaces.
+- Encoded blobs: base64 runs >= 80 chars with >= 16 distinct alphabet chars;
+  hex runs >= 80 chars with >= 8 distinct.
+- Covert whitespace: >= 5 lines with trailing whitespace of >= 3 chars and
+  >= 40 trailing chars total; >= 5 internal runs of 16+ spaces/tabs; >= 3
+  exotic Unicode spaces. Trailing runs of exactly 2 spaces (the CommonMark
+  hard line break) and internal runs under 16 are treated as formatting.
+- Homoglyph (AW-U004): Cyrillic-only. Greek is excluded as mathematical
+  notation (Sigma, Delta, lambda).
 - Sample cap: 4 MiB per artifact (bytes beyond the cap are hashed but not
   pattern-scanned).
+
+## Context tagging (calibration from the first real corpus)
+
+A lexical gate cannot tell "the agent emitted `<|channel|>`" from "the
+document discusses `<|channel|>`". On a real research/correspondence corpus
+almost every lexical hit was the second kind. So lexical findings are tagged
+deterministically:
+
+- `quoted` -- the match is inside a code fence, inline backticks, or quotes.
+- `technical` -- the containing line reads as discussion (mentions a
+  template, checkpoint, token, regex, the model, a leak, etc.).
+
+A tagged finding is downgraded one severity notch and listed in a separate
+"contextual signals" block. The raw response is still shown; the tag routes
+review, it does not dismiss. On the first real mailbox this took 149 findings
+to 32 without hiding a single hit.
 
 ## Known false-positive sources (stated, not hidden)
 
@@ -64,6 +86,9 @@ The scanner pack wraps, never reimplements:
 - **yara** (optional): wraps the `yara` CLI against `rules/yara` (or
   `--rules-dir`). Rule matches default to severity `high` until meta parsing
   lands. AW-M002.
+- **sigfile** (optional): loads open-format signature databases dropped into
+  `signatures/` (ClamAV `.hdb`/`.hsb`/`.ndb`). Hash signatures are `critical`,
+  body signatures `high`. AW-M003. Sources and licenses: `signatures/README.md`.
 
 Scanners that are not installed are reported `UNAVAILABLE` in the sweep
 report's scanners block and in `scanner_status`. An absent scanner is a stated

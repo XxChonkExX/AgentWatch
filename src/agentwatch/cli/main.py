@@ -21,6 +21,10 @@ from ..core.engine import SweepEngine
 from ..core.ledger import Ledger
 from ..detectors.frozen_guard import load_manifest
 from ..detectors.registry import RULES, build_detectors
+from ..probes.runner import run_pack
+from ..probes.schema import ProbePack, read_transcripts, write_transcripts
+from ..probes.scoring import render_probe_report, render_review_sheet, score_arms
+from ..probes.targets import OpenAICompatTarget, RecordedTarget
 from ..scoring import report as report_mod
 from ..scoring import severity
 
@@ -107,9 +111,16 @@ def _default_rules_dir(args) -> str | None:
     return str(candidate) if candidate.is_dir() else None
 
 
+def _default_sig_dir(args) -> str | None:
+    if getattr(args, "sig_dir", None):
+        return args.sig_dir
+    candidate = _repo_root() / "signatures"
+    return str(candidate) if candidate.is_dir() else None
+
+
 def cmd_sweep(args) -> int:
     freeze = load_manifest(args.freeze) if args.freeze else None
-    detectors = build_detectors(freeze, rules_dir=_default_rules_dir(args))
+    detectors = build_detectors(freeze, rules_dir=_default_rules_dir(args), sig_dir=_default_sig_dir(args))
     ledger = Ledger(args.ledger) if args.ledger else None
     collector = pick_collector(args.target, args.kind)
     engine = SweepEngine(detectors, ledger=ledger)
@@ -163,8 +174,97 @@ def cmd_serve(args) -> int:
         ledger_dir=args.ledger,
         freeze_manifest=freeze,
         rules_dir=_default_rules_dir(args),
+        sig_dir=_default_sig_dir(args),
     )
     uvicorn.run(app, host=args.host, port=args.port)
+    return 0
+
+
+def _packs_dir() -> Path:
+    return _repo_root() / "src" / "agentwatch" / "probes" / "packs"
+
+
+def _resolve_pack(name: str) -> str:
+    p = Path(name)
+    if p.is_file():
+        return str(p)
+    for cand in (_packs_dir() / (name + ".jsonl"), _packs_dir() / name):
+        if cand.is_file():
+            return str(cand)
+    raise SystemExit("pack not found: %s (looked in %s)" % (name, _packs_dir()))
+
+
+def cmd_probe_list(args) -> int:
+    pack = ProbePack.load(_resolve_pack(args.pack))
+    print("pack    : %s" % pack.name)
+    print("path    : %s" % pack.path)
+    print("sha256  : %s" % pack.sha256)
+    print("probes  : %d" % len(pack.probes))
+    for kind, n in pack.counts().items():
+        print("  %-20s %d" % (kind, n))
+    if args.verbose:
+        for p in pack.probes:
+            print("  %-24s %-16s %s" % (p.pid, p.kind, p.last_user_text()[:60]))
+    return 0
+
+
+def cmd_probe_freeze(args) -> int:
+    pack = ProbePack.load(_resolve_pack(args.pack))
+    doc = pack.freeze(provenance=args.provenance or "")
+    print("frozen: %s" % pack.sidecar_path())
+    print("sha256: %s" % doc["sha256"])
+    print("n     : %d" % doc["n"])
+    return 0
+
+
+def cmd_probe_verify(args) -> int:
+    pack = ProbePack.load(_resolve_pack(args.pack))
+    ok, problems = pack.verify()
+    if ok:
+        print("OK: %s matches frozen sidecar (%d probes)" % (pack.name, len(pack.probes)))
+        return 0
+    print("FROZEN-PACK MISMATCH:")
+    for p in problems:
+        print("  " + p)
+    return 1
+
+
+def cmd_probe_run(args) -> int:
+    pack = ProbePack.load(_resolve_pack(args.pack))
+    if args.recorded:
+        ts = read_transcripts(args.recorded)
+        target = RecordedTarget({t.prompt: t.output for t in ts}, name=args.arm or "recorded")
+    elif args.target_url:
+        target = OpenAICompatTarget(args.target_url, args.model or "local", api_key=args.api_key)
+    else:
+        print("probe run needs --target-url URL --model M, or --recorded FILE")
+        return 2
+    ledger = Ledger(args.ledger) if args.ledger else None
+    results = run_pack(pack, target, ledger=ledger, arm=args.arm)
+    out = args.out or ("transcripts_%s_%s.jsonl" % (pack.name, results[0].arm if results else "arm"))
+    write_transcripts(out, results)
+    print("ran %d probes against %s -> %s" % (len(results), target.name, out))
+    return 0
+
+
+def cmd_probe_score(args) -> int:
+    arms: dict = {}
+    for path in args.transcripts:
+        ts = read_transcripts(path)
+        arm = ts[0].arm if ts else Path(path).stem
+        arms[arm] = ts
+    report = score_arms(arms, ref=args.ref)
+    if args.json:
+        print(json.dumps(report, indent=2, sort_keys=True))
+    else:
+        print(render_probe_report(report))
+    return 0
+
+
+def cmd_probe_review(args) -> int:
+    pack = ProbePack.load(_resolve_pack(args.pack))
+    ts = read_transcripts(args.transcripts)
+    print(render_review_sheet(pack, ts))
     return 0
 
 
@@ -188,6 +288,7 @@ def build_parser() -> argparse.ArgumentParser:
     sw.add_argument("--ledger", default=None, help="ledger directory to record into")
     sw.add_argument("--freeze", default=None, help="freeze manifest JSON (path -> sha256)")
     sw.add_argument("--rules-dir", default=None, help="YARA rules directory (default: rules/yara)")
+    sw.add_argument("--sig-dir", default=None, help="signature DB directory (default: signatures/)")
     sw.add_argument("--rule", default=None, help="only show findings for this rule id")
     sw.add_argument("--json", action="store_true")
     sw.add_argument(
@@ -211,7 +312,47 @@ def build_parser() -> argparse.ArgumentParser:
     sv.add_argument("--ledger", default=None)
     sv.add_argument("--freeze", default=None)
     sv.add_argument("--rules-dir", default=None)
+    sv.add_argument("--sig-dir", default=None)
     sv.set_defaults(func=cmd_serve)
+
+    pp = sub.add_parser("probe", help="probe packs: run, score, review, freeze")
+    psub = pp.add_subparsers(dest="probe_command", required=True)
+
+    pl = psub.add_parser("list", help="list probes in a pack")
+    pl.add_argument("pack")
+    pl.add_argument("-v", "--verbose", action="store_true")
+    pl.set_defaults(func=cmd_probe_list)
+
+    pf = psub.add_parser("freeze", help="write the frozen sidecar for a pack")
+    pf.add_argument("pack")
+    pf.add_argument("--provenance", default=None)
+    pf.set_defaults(func=cmd_probe_freeze)
+
+    pv = psub.add_parser("verify", help="verify a pack against its frozen sidecar")
+    pv.add_argument("pack")
+    pv.set_defaults(func=cmd_probe_verify)
+
+    pr = psub.add_parser("run", help="run a pack against a target")
+    pr.add_argument("pack")
+    pr.add_argument("--target-url", default=None, help="OpenAI-compatible base URL")
+    pr.add_argument("--model", default=None)
+    pr.add_argument("--api-key", default=None)
+    pr.add_argument("--recorded", default=None, help="replay outputs from a transcripts file")
+    pr.add_argument("--arm", default=None)
+    pr.add_argument("--out", default=None)
+    pr.add_argument("--ledger", default=None)
+    pr.set_defaults(func=cmd_probe_run)
+
+    ps = psub.add_parser("score", help="score one or more transcripts files")
+    ps.add_argument("transcripts", nargs="+")
+    ps.add_argument("--ref", default=None)
+    ps.add_argument("--json", action="store_true")
+    ps.set_defaults(func=cmd_probe_score)
+
+    pv2 = psub.add_parser("review", help="emit a human-review sheet")
+    pv2.add_argument("pack")
+    pv2.add_argument("transcripts")
+    pv2.set_defaults(func=cmd_probe_review)
 
     return p
 
