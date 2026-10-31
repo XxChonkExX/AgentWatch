@@ -196,3 +196,17 @@ listeners caught high on both). Remaining: Defender/AMSI bridge, executable
 hashing for process identity, and ledger anchoring -- anchoring lands before
 any "hidden danger" claim is strengthened beyond what the snapshot diff can
 honestly see.
+
+## Canary tokens, loop detection, and OTLP ingest
+
+```bash
+aw canary plant C:\data\vault --count 3      # plant deterministic exfil bait
+aw canary check C:\suspicious --registry C:\data\vault   # did the bait move?
+aw ledger loops ./aw-ledger                  # stuck-agent detection (AW-P007)
+aw otel serve --ledger ./aw-ledger           # OTLP/HTTP :4318 -> ledger
+```n
+Any OpenTelemetry-instrumented agent framework (LangChain, pydantic-ai,
+OpenLLMetry, ...) can export OTLP/HTTP to the receiver; GenAI spans become
+ledger records. Canary digests are HMAC-keyed, so a leaked registry never
+reveals the bait. See docs/THREAT_MODEL.md for what this tool does and does
+not defend against.

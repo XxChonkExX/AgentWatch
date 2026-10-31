@@ -116,6 +116,24 @@ AW_C001 = _rule(
     "exists -- but it is stable evidence when it repeats.",
     "tests/test_covert_channel.py::test_trailing_positive",
 )
+AW_C002 = _rule(
+    "AW-C002", "critical",
+    "Canary token surfaced",
+    "A planted canary string appeared where it should not be: in scanned text, "
+    "a report, or the ledger. A canary that moved is deterministic proof that "
+    "the data around it moved. The finding records a keyed hash of the canary, "
+    "never the canary itself.",
+    "tests/test_canary.py::test_canary_detected",
+)
+AW_P007 = _rule(
+    "AW-P007", "medium",
+    "Repetitive action loop",
+    "The same action repeated on the same target more than the frozen threshold "
+    "within the analysis window. The signature of a stuck retry loop, a runaway "
+    "agent, or deliberate resource churn. Read from the ledger, so it needs no "
+    "runtime hook.",
+    "tests/test_loop.py::test_loop_detected",
+)
 AW_M001 = _rule(
     "AW-M001", "critical",
     "Builtin signature match",
@@ -226,7 +244,8 @@ ALL_RULES: tuple[Rule, ...] = (
     AW_N001,
     AW_F001, AW_F002, AW_F003,
     AW_S001,
-    AW_C001,
+    AW_C001, AW_C002,
+    AW_P001, AW_P002, AW_P003, AW_P004, AW_P005, AW_P006, AW_P007,
     AW_M001, AW_M002, AW_M003,
     AW_P001, AW_P002, AW_P003, AW_P004, AW_P005, AW_P006,
     AW_R001,

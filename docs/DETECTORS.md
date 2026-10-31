@@ -21,6 +21,8 @@ finding was made.
 | AW-M001 | A | critical | builtin signature match | `sample` | `tests/test_scanners.py::test_builtin_eicar_positive` |
 | AW-M002 | A | critical | external scanner signature match | `sample` | `tests/test_scanners.py::test_external_scanner_wiring` |
 | AW-M003 | A | critical | signature-file match (open signature DB) | `sample` | `tests/test_sigfile.py::test_hash_signature_positive` |
+| AW-C002 | A | critical | canary token surfaced (keyed digest) | `text` | `tests/test_exfil_and_loops.py` |
+| AW-P007 | A | medium | repetitive action loop (ledger runs) | `ledger` | `tests/test_exfil_and_loops.py` |
 | AW-R001 | A | critical | frozen record mutated | `manifest`, `sha256` | `tests/test_frozen_guard.py::test_frozen_positive` |
 | AW-T001 | A | medium | thinking / containment leak tokens | `text` | `tests/test_thinking_gate.py::test_leak_positive` |
 | AW-T002 | A | medium | prompt-injection / override markers | `text` | `tests/test_thinking_gate.py::test_injection_positive` |

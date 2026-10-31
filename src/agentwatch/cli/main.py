@@ -377,6 +377,90 @@ def cmd_posture(args) -> int:
     return 0
 
 
+def cmd_ledger_loops(args) -> int:
+    from agentwatch.core.loops import detect_loops
+
+    led = Ledger(args.dir)
+    findings = detect_loops(list(led.read_all()), threshold=args.threshold, window=args.window)
+    if not findings:
+        print("no action loops in the last %d records" % args.window)
+        return 0
+    for f in findings:
+        print("[%s] %s  %s" % (f.severity, f.rule_id, f.title))
+        print("    target : %s" % f.target)
+        print("    detail : %s" % f.detail)
+    return 0
+
+
+def cmd_canary_plant(args) -> int:
+    from agentwatch.core.canary import plant
+
+    reg = plant(args.workspace, count=args.count)
+    print("planted %d canary(ies) in %s" % (len(reg["canaries"]), args.workspace))
+    print("registry: %s" % os.path.join(args.workspace, ".agentwatch", "canaries.json"))
+    print("if any canary appears outside this workspace, data moved. check with:")
+    print("  aw canary check <other-dir-or-ledger> --registry \"%s\"" %
+          os.path.join(args.workspace, ".agentwatch", "canaries.json"))
+    return 0
+
+
+def cmd_canary_check(args) -> int:
+    from agentwatch.core.canary import registry_tokens, load_registry
+    from agentwatch.core.schema import build_artifact
+    from agentwatch.core.hashing import hash_bytes
+
+    registry = load_registry(args.registry) if os.path.isdir(args.registry) else json.load(open(args.registry, encoding="utf-8"))
+    tokens = registry_tokens(registry)
+    if not tokens:
+        print("no readable canaries in registry (planted files moved or removed)")
+        return 2
+    hits = []
+    p = Path(args.target)
+    if p.is_file():
+        text = p.read_text(encoding="utf-8", errors="replace")
+        for tok in tokens:
+            if tok in text:
+                hits.append((str(p), tok))
+    elif p.is_dir():
+        for root, _d, files in os.walk(p):
+            for fn in files:
+                fp = os.path.join(root, fn)
+                try:
+                    text = open(fp, "r", encoding="utf-8", errors="replace").read()
+                except OSError:
+                    continue
+                for tok in tokens:
+                    if tok in text and ".agentwatch" not in fp:
+                        hits.append((fp, tok))
+    else:
+        for ev in Ledger(args.target).read_all():
+            blob = json.dumps(ev, ensure_ascii=True)
+            for tok in tokens:
+                if tok in blob:
+                    hits.append(("ledger seq=%s" % ev.get("seq"), tok))
+    if not hits:
+        print("OK: no canary leakage into %s" % args.target)
+        return 0
+    print("CANARY LEAKED: %d hit(s)" % len(hits))
+    for where, tok in hits[:20]:
+        print("  %s -> %s (digest %s)" % (where, tok[:12] + "...", hash_bytes(tok.encode())[:12]))
+    return 1
+
+
+def cmd_otel_serve(args) -> int:
+    from agentwatch.collectors.otel import make_server
+
+    led = Ledger.init(args.ledger)
+    print("OTLP/HTTP receiver on http://%s:%d (POST /v1/traces) -> ledger %s" % (args.host, args.port, led.path))
+    print("point any OTel exporter's OTLP/HTTP endpoint here; Ctrl+C to stop")
+    server = make_server(args.host, args.port, led)
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        pass
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="aw", description="AgentWatch: deterministic monitoring for agent swarms.")
     p.add_argument("--version", action="version", version="agentwatch %s" % __version__)
@@ -491,6 +575,31 @@ def build_parser() -> argparse.ArgumentParser:
     po.add_argument("--fail-on", choices=["none", "info", "low", "medium", "high", "critical"], default="none")
     po.add_argument("--json", action="store_true")
     po.set_defaults(func=cmd_posture)
+
+    lw = lsub.add_parser("loops", help="detect repetitive action loops in the ledger")
+    lw.add_argument("dir")
+    lw.add_argument("--threshold", type=int, default=5)
+    lw.add_argument("--window", type=int, default=200)
+    lw.set_defaults(func=cmd_ledger_loops)
+
+    cp = sub.add_parser("canary", help="canary tokens: deterministic exfil proof")
+    csub = cp.add_subparsers(dest="canary_command", required=True)
+    cpl = csub.add_parser("plant", help="plant canaries in a workspace")
+    cpl.add_argument("workspace")
+    cpl.add_argument("--count", type=int, default=3)
+    cpl.set_defaults(func=cmd_canary_plant)
+    cck = csub.add_parser("check", help="check a target dir or ledger for leaked canaries")
+    cck.add_argument("target")
+    cck.add_argument("--registry", required=True, help="canaries.json (or its workspace dir)")
+    cck.set_defaults(func=cmd_canary_check)
+
+    ot = sub.add_parser("otel", help="OTLP ingest receiver")
+    osu = ot.add_subparsers(dest="otel_command", required=True)
+    ose = osu.add_parser("serve", help="accept OTLP/HTTP traces into the ledger")
+    ose.add_argument("--port", type=int, default=4318)
+    ose.add_argument("--host", default="127.0.0.1")
+    ose.add_argument("--ledger", required=True)
+    ose.set_defaults(func=cmd_otel_serve)
 
     return p
 
