@@ -29,8 +29,14 @@ alignment work and scored with deterministic gates, n + Wilson intervals, a
 degeneracy gate, and a coupled-metric anti-gaming gate. The verdict is
 always a human's; the gates only rank.
 
-It does not watch processes, ports, or network yet, and it does not conclude
-intent. It records and it reports. See [docs/PROBES.md](docs/PROBES.md).
+M3 adds **runtime posture**: point-in-time snapshots of processes, listening
+ports, connections, and kernel drivers/modules (backends: psutil if present,
+otherwise native PowerShell on Windows or /proc on Linux), a deterministic
+baseline diff, and AW-P001..P005 findings. Backends must match between
+baseline and current; a cross-backend diff is refused.
+
+It does not conclude intent. It records and it reports.
+See [docs/PROBES.md](docs/PROBES.md) and [docs/RUNTIME.md](docs/RUNTIME.md).
 
 ## The one rule that matters
 
@@ -96,6 +102,11 @@ use in a pipeline.
 | AW-M001 | critical | builtin signature match (EICAR, webshell, reverse shell, miner) |
 | AW-M002 | critical | external scanner match (ClamAV / YARA) |
 | AW-M003 | critical | signature-file match (open signature DB: ClamAV .hdb/.hsb/.ndb) |
+| AW-P001 | medium/high | new listening port (all-interfaces or risky port escalates) |
+| AW-P002 | low | new outbound connection (egress) |
+| AW-P003 | low | new process not in baseline |
+| AW-P004 | high | suspicious process (temp-path exec, LOLBin + obfuscation marker) |
+| AW-P005 | high | new kernel driver/module |
 | AW-R001 | critical | frozen record mutated |
 | AW-T001 | medium | thinking / containment leak tokens |
 | AW-T002 | medium | prompt-injection / override markers |
@@ -128,6 +139,7 @@ src/agentwatch/core/        schema, hashing, hash-chained ledger, sweep engine
 src/agentwatch/collectors/  filesystem (+ NTFS ADS), mail
 src/agentwatch/detectors/   the Lane-A rule pack
 src/agentwatch/scanners/    ScannerBridge (builtin, sigfile, ClamAV, YARA)
+src/agentwatch/runtime/     runtime snapshots, diff, posture detectors
 src/agentwatch/probes/      probe packs, gates, runner, scoring
 src/agentwatch/scoring/     severity ladder, ranking, report rendering
 src/agentwatch/cli/         the `aw` command
@@ -149,12 +161,24 @@ aw probe review workplace_v1 a.jsonl     # the human review sheet
 
 See [docs/PROBES.md](docs/PROBES.md).
 
+## Runtime posture
+
+```bash
+aw snapshot --out baseline.json          # capture the host (baseline)
+aw posture --baseline baseline.json      # diff current host against it
+aw posture --baseline baseline.json --scan-all --fail-on high
+```
+
+Backends: `psutil` (optional extra), `windows` (PowerShell), `linux` (/proc).
+The backend is recorded in the snapshot; posture refuses to diff across
+different backends. See [docs/RUNTIME.md](docs/RUNTIME.md).
+
 ## Status
 
-M0, M1, and M2 complete (ledger, sweepers, detector pack, ScannerBridge with
-open signature DBs, and the Crucible probe-pack port). Calibrated against a
-real 742-file agent mailbox: 149 raw findings reduced to 32 with nothing
-hidden (context tagging + threshold calibration). Next: runtime collectors
-(process/port/exec), Defender/AMSI bridge, and the browser dashboard.
-Frozen-record anchoring lands before any of the "hidden danger" claims are
-made.
+M0-M3 complete: ledger, sweepers, detector pack, ScannerBridge with open
+signature DBs, the Crucible probe-pack port, and runtime posture. Calibrated
+against a real 742-file agent mailbox (149 raw findings to 32, nothing
+hidden) and live-tested on Windows and Linux/WSL (a real listener on both was
+caught as high). Next: the browser dashboard, Defender/AMSI bridge, and
+frozen-record anchoring -- anchoring lands before any "hidden danger" claim is
+strengthened beyond what the snapshot diff can honestly see.

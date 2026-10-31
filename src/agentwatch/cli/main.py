@@ -25,6 +25,10 @@ from ..probes.runner import run_pack
 from ..probes.schema import ProbePack, read_transcripts, write_transcripts
 from ..probes.scoring import render_probe_report, render_review_sheet, score_arms
 from ..probes.targets import OpenAICompatTarget, RecordedTarget
+from ..runtime.collect import collect_snapshot
+from ..runtime.diff import diff_snapshots
+from ..runtime.posture import analyze as posture_analyze
+from ..runtime.schema import RuntimeSnapshot
 from ..scoring import report as report_mod
 from ..scoring import severity
 
@@ -268,6 +272,77 @@ def cmd_probe_review(args) -> int:
     return 0
 
 
+def cmd_snapshot(args) -> int:
+    snap = collect_snapshot(args.backend)
+    if args.out:
+        with open(args.out, "w", encoding="utf-8", newline="\n") as fh:
+            json.dump(snap.to_dict(), fh, indent=2, sort_keys=True)
+            fh.write("\n")
+    if args.json:
+        print(json.dumps(snap.to_dict(), indent=2, sort_keys=True))
+    else:
+        c = snap.counts()
+        print("snapshot    : host=%s backend=%s ts=%s" % (snap.host, snap.backend, snap.ts))
+        print("visible     : proc=%d listen=%d conn=%d drivers=%d" % (
+            c["processes"], c["listeners"], c["connections"], c["drivers"]))
+        print("sha256      : %s" % snap.hash()[:32])
+        if args.out:
+            print("written     : %s" % args.out)
+    return 0
+
+
+def cmd_posture(args) -> int:
+    with open(args.baseline, "r", encoding="utf-8") as fh:
+        base = RuntimeSnapshot.from_dict(json.load(fh))
+    # Cheap pre-check before any collection: backends see different worlds
+    # (driver model, address rendering). Diffing across them manufactures
+    # findings.
+    resolved = args.backend
+    if resolved == "auto":
+        try:
+            import psutil  # noqa: F401
+            resolved = "psutil"
+        except Exception:
+            resolved = "windows" if os.name == "nt" else "linux"
+    if base.backend and base.backend != resolved and not args.force:
+        print("backend mismatch: baseline=%s current=%s (use --force to override)"
+              % (base.backend, resolved))
+        return 2
+    cur = collect_snapshot(args.backend)
+    diff = diff_snapshots(base, cur)
+    findings = posture_analyze(
+        diff,
+        cur,
+        allow_ports=args.allow_port,
+        allow_processes=args.allow_process,
+        ignore_loopback=not args.include_loopback,
+        scan_all_processes=args.scan_all,
+    )
+    ledger = Ledger(args.ledger) if args.ledger else None
+    if ledger is not None:
+        ledger.append({
+            "action": "posture",
+            "baseline": args.baseline,
+            "baseline_sha256": base.hash(),
+            "current_sha256": cur.hash(),
+            "counts": diff.get("counts", {}),
+            "findings": [f.to_dict() for f in findings],
+        })
+    if args.json:
+        print(json.dumps({
+            "baseline_sha256": base.hash(),
+            "current_sha256": cur.hash(),
+            "diff_counts": diff.get("counts", {}),
+            "findings": [f.to_dict() for f in findings],
+        }, indent=2, sort_keys=True))
+    else:
+        print(report_mod.render_posture_report(cur, diff, findings, baseline_path=args.baseline))
+    if args.fail_on != "none":
+        flagged = severity.at_or_above(findings, args.fail_on)
+        return 1 if flagged else 0
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="aw", description="AgentWatch: deterministic monitoring for agent swarms.")
     p.add_argument("--version", action="version", version="agentwatch %s" % __version__)
@@ -353,6 +428,25 @@ def build_parser() -> argparse.ArgumentParser:
     pv2.add_argument("pack")
     pv2.add_argument("transcripts")
     pv2.set_defaults(func=cmd_probe_review)
+
+    sn = sub.add_parser("snapshot", help="capture a runtime snapshot (baseline)")
+    sn.add_argument("--out", default=None, help="write snapshot JSON here")
+    sn.add_argument("--backend", choices=["auto", "psutil", "windows", "linux"], default="auto")
+    sn.add_argument("--json", action="store_true")
+    sn.set_defaults(func=cmd_snapshot)
+
+    po = sub.add_parser("posture", help="diff current host against a baseline")
+    po.add_argument("--baseline", required=True)
+    po.add_argument("--backend", choices=["auto", "psutil", "windows", "linux"], default="auto")
+    po.add_argument("--ledger", default=None)
+    po.add_argument("--allow-port", action="append", type=int, default=[])
+    po.add_argument("--allow-process", action="append", default=[])
+    po.add_argument("--include-loopback", action="store_true")
+    po.add_argument("--scan-all", action="store_true", help="suspicion-check every process, not just new ones")
+    po.add_argument("--force", action="store_true", help="diff even if baseline backend differs")
+    po.add_argument("--fail-on", choices=["none", "info", "low", "medium", "high", "critical"], default="none")
+    po.add_argument("--json", action="store_true")
+    po.set_defaults(func=cmd_posture)
 
     return p
 

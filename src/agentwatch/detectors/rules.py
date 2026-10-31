@@ -141,6 +141,44 @@ AW_M003 = _rule(
     "hit so a match is reproducible against the same signatures.",
     "tests/test_sigfile.py::test_hash_signature_positive",
 )
+AW_P001 = _rule(
+    "AW-P001", "medium",
+    "New listening port",
+    "A port is listening now that was not listening in the baseline snapshot: a "
+    "network-facing service appeared. A bind on all interfaces (0.0.0.0 / ::) "
+    "escalates to high; a risky well-known port also escalates.",
+    "tests/test_runtime.py::test_new_listener",
+)
+AW_P002 = _rule(
+    "AW-P002", "low",
+    "New outbound connection",
+    "An established connection to a remote endpoint not present in the baseline. "
+    "Egress appeared. Loopback is ignored by default; enable with --include-loopback.",
+    "tests/test_runtime.py::test_new_egress",
+)
+AW_P003 = _rule(
+    "AW-P003", "low",
+    "New process not in baseline",
+    "A running process whose identity (executable path, else name) was not in the "
+    "baseline snapshot. Low severity: new processes are the normal state of a "
+    "working machine. It is a review queue, not an alarm.",
+    "tests/test_runtime.py::test_new_process",
+)
+AW_P004 = _rule(
+    "AW-P004", "high",
+    "Suspicious process characteristics",
+    "A running process whose executable or command line carries deterministic "
+    "risk markers: execution from a temp/user-writable path, a LOLBin paired "
+    "with an obfuscation flag, or encoded/quiet execution markers.",
+    "tests/test_runtime.py::test_suspicious_process",
+)
+AW_P005 = _rule(
+    "AW-P005", "high",
+    "New kernel driver or module",
+    "A kernel driver (Windows) or module (Linux) is loaded that was not in the "
+    "baseline snapshot. Kernel-level change is high severity by nature.",
+    "tests/test_runtime.py::test_new_driver",
+)
 AW_R001 = _rule(
     "AW-R001", "critical",
     "Frozen record mutated",
@@ -182,6 +220,7 @@ ALL_RULES: tuple[Rule, ...] = (
     AW_S001,
     AW_C001,
     AW_M001, AW_M002, AW_M003,
+    AW_P001, AW_P002, AW_P003, AW_P004, AW_P005,
     AW_R001,
     AW_T001, AW_T002, AW_T003,
 )

@@ -142,3 +142,62 @@ def render_text(result: SweepResult, rule_filter: str | None = None) -> str:
     lines.append("-" * 72)
     lines.append(COVERAGE_LIMITS.rstrip())
     return "\n".join(lines)
+
+
+POSTURE_LIMITS = """\
+- A snapshot is a point-in-time picture from the OS's own APIs. A process can
+  hide from default enumeration (rootkits, kernel callbacks); absence here is
+  not evidence of absence.
+- Process identity is executable path (or name). A replaced binary at the same
+  path is not detected by the diff; hash executables to catch that.
+- Linux connections are not attributed to a pid here (no /proc/<pid>/fd walk).
+- Kernel drivers (Windows) and modules (Linux) are listed, not verified.
+- UDP egress, raw sockets, and non-INET families are not fully enumerated.
+- The operator's own tools run on this host. A new process is a line item,
+  not a verdict. Read the diff before acting.
+"""
+
+
+def render_posture_report(snapshot, diff, findings, baseline_path: str = "") -> str:
+    ranked = severity.rank(findings)
+    c = severity.counts(findings)
+    dc = diff.get("counts", {})
+    lines = []
+    lines.append("AgentWatch posture report")
+    lines.append("=" * 72)
+    lines.append("host        : %s" % snapshot.host)
+    lines.append("backend     : %s" % snapshot.backend)
+    lines.append("baseline    : %s" % (baseline_path or "<none>"))
+    lines.append("snapshot    : %s" % snapshot.ts)
+    lines.append(
+        "visible     : proc=%d listen=%d conn=%d drivers=%d"
+        % (
+            len(snapshot.processes), len(snapshot.listeners),
+            len(snapshot.connections), len(snapshot.drivers),
+        )
+    )
+    lines.append(
+        "changes     : +proc=%d +listen=%d +conn=%d +driver=%d"
+        % (
+            dc.get("added_processes", 0), dc.get("added_listeners", 0),
+            dc.get("added_connections", 0), dc.get("added_drivers", 0),
+        )
+    )
+    lines.append(
+        "findings    : %d   (critical=%d high=%d medium=%d low=%d info=%d)"
+        % (len(ranked), c["critical"], c["high"], c["medium"], c["low"], c["info"])
+    )
+    lines.append("")
+    if not ranked:
+        lines.append("No posture changes. This is not a clearance -- read the limits below.")
+        lines.append("")
+    for f in ranked:
+        lines.append("[%s] %s  %s" % (f.severity, f.rule_id, f.title))
+        lines.append("    target : %s" % f.target)
+        lines.append("    detail : %s" % f.detail)
+        lines.append("    rule   : sha256:%s" % f.rule_version)
+        lines.append("")
+    lines.append("coverage & limits")
+    lines.append("-" * 72)
+    lines.append(POSTURE_LIMITS.rstrip())
+    return "\n".join(lines)
