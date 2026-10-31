@@ -39,7 +39,7 @@ class Cli(unittest.TestCase):
             fh.write("x\u200by")
         buf = io.StringIO()
         with contextlib.redirect_stdout(buf):
-            rc = main(["sweep", d, "--fail-on", "medium"])
+            rc = main(["sweep", d, "--fail-on", "medium", "--no-live-av"])
         self.assertEqual(rc, 1)
         self.assertIn("AW-U001", buf.getvalue())
 
@@ -49,7 +49,7 @@ class Cli(unittest.TestCase):
             fh.write("nothing to see here\n")
         buf = io.StringIO()
         with contextlib.redirect_stdout(buf):
-            rc = main(["sweep", d, "--fail-on", "medium"])
+            rc = main(["sweep", d, "--fail-on", "medium", "--no-live-av"])
         self.assertEqual(rc, 0)
 
     def test_probe_list(self):

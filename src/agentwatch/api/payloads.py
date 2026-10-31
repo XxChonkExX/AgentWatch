@@ -66,7 +66,7 @@ def sweep_payload(target: str, kind: str | None = None, ledger_dir: str | None =
                   sig_dir: str | None = None, rule_filter: str | None = None) -> dict:
     freeze_manifest = load_manifest(freeze) if freeze else None
     detectors = build_detectors(freeze_manifest, rules_dir=rules_dir, sig_dir=sig_dir)
-    ledger = Ledger(ledger_dir) if ledger_dir else None
+    ledger = Ledger.init(ledger_dir) if ledger_dir else None
     from ..cli.main import pick_collector
 
     engine = SweepEngine(detectors, ledger=ledger)
@@ -121,7 +121,7 @@ def posture_payload(baseline: str, backend: str = "auto", force: bool = False,
         ignore_loopback=not include_loopback, scan_all_processes=scan_all,
     )
     if ledger_dir:
-        Ledger(ledger_dir).append({
+        Ledger.init(ledger_dir).append({
             "action": "posture",
             "baseline": baseline,
             "baseline_sha256": base.hash(),

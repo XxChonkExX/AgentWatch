@@ -44,5 +44,22 @@ def diff_snapshots(base: RuntimeSnapshot, cur: RuntimeSnapshot) -> dict:
         "added_drivers": _added(bd, cd),
         "removed_drivers": _removed(bd, cd),
     }
+
+    # Binary replacement at a known path: same identity, different image hash.
+    # Only comparable when both snapshots carried image hashes.
+    changed = []
+    for key, cur_proc in cp.items():
+        base_proc = bp.get(key)
+        if base_proc is None:
+            continue
+        a, b = base_proc.image_sha256, cur_proc.image_sha256
+        if a and b and a != b:
+            changed.append({
+                "identity": key,
+                "name": cur_proc.name,
+                "from": a,
+                "to": b,
+            })
+    result["changed_images"] = changed
     result["counts"] = {k: len(v) for k, v in result.items() if k != "counts"}
     return result

@@ -101,11 +101,34 @@ def cmd_ledger_verify(args) -> int:
     if ok:
         n = sum(1 for _ in led.read_all())
         print("OK: %d record(s), chain intact" % n)
-        return 0
-    print("TAMPERED: %d problem(s)" % len(problems))
-    for p in problems:
-        print("  " + p)
-    return 1
+    else:
+        print("TAMPERED: %d problem(s)" % len(problems))
+        for p in problems:
+            print("  " + p)
+    if args.anchor:
+        with open(args.anchor, "r", encoding="utf-8") as fh:
+            anchor = json.load(fh)
+        aok, aproblems = led.verify_anchor(anchor)
+        if aok:
+            print("OK: chain head matches anchor at seq=%s" % anchor.get("seq"))
+        else:
+            ok = False
+            print("ANCHOR MISMATCH:")
+            for p in aproblems:
+                print("  " + p)
+    return 0 if ok else 1
+
+
+def cmd_ledger_anchor(args) -> int:
+    led = Ledger(args.dir)
+    doc = led.anchor_head()
+    out = args.out or os.path.join(args.dir, "head.json")
+    with open(out, "w", encoding="utf-8", newline="\n") as fh:
+        json.dump(doc, fh, indent=2, sort_keys=True)
+        fh.write("\n")
+    print("anchored: seq=%s hash=%s -> %s" % (doc["seq"], doc["hash"][:16], out))
+    print("store this file somewhere the ledger cannot reach (second box, cold storage).")
+    return 0
 
 
 def _default_rules_dir(args) -> str | None:
@@ -124,8 +147,13 @@ def _default_sig_dir(args) -> str | None:
 
 def cmd_sweep(args) -> int:
     freeze = load_manifest(args.freeze) if args.freeze else None
-    detectors = build_detectors(freeze, rules_dir=_default_rules_dir(args), sig_dir=_default_sig_dir(args))
-    ledger = Ledger(args.ledger) if args.ledger else None
+    detectors = build_detectors(
+        freeze,
+        rules_dir=_default_rules_dir(args),
+        sig_dir=_default_sig_dir(args),
+        live_av=not args.no_live_av,
+    )
+    ledger = Ledger.init(args.ledger) if args.ledger else None
     collector = pick_collector(args.target, args.kind)
     engine = SweepEngine(detectors, ledger=ledger)
     result = engine.sweep(collector, args.target)
@@ -249,7 +277,7 @@ def cmd_probe_run(args) -> int:
     else:
         print("probe run needs --target-url URL --model M, or --recorded FILE")
         return 2
-    ledger = Ledger(args.ledger) if args.ledger else None
+    ledger = Ledger.init(args.ledger) if args.ledger else None
     results = run_pack(pack, target, ledger=ledger, arm=args.arm)
     out = args.out or ("transcripts_%s_%s.jsonl" % (pack.name, results[0].arm if results else "arm"))
     write_transcripts(out, results)
@@ -279,7 +307,7 @@ def cmd_probe_review(args) -> int:
 
 
 def cmd_snapshot(args) -> int:
-    snap = collect_snapshot(args.backend)
+    snap = collect_snapshot(args.backend, hash_images=args.hash_images)
     if args.out:
         with open(args.out, "w", encoding="utf-8", newline="\n") as fh:
             json.dump(snap.to_dict(), fh, indent=2, sort_keys=True)
@@ -314,7 +342,7 @@ def cmd_posture(args) -> int:
         print("backend mismatch: baseline=%s current=%s (use --force to override)"
               % (base.backend, resolved))
         return 2
-    cur = collect_snapshot(args.backend)
+    cur = collect_snapshot(args.backend, hash_images=args.hash_images)
     diff = diff_snapshots(base, cur)
     findings = posture_analyze(
         diff,
@@ -324,7 +352,7 @@ def cmd_posture(args) -> int:
         ignore_loopback=not args.include_loopback,
         scan_all_processes=args.scan_all,
     )
-    ledger = Ledger(args.ledger) if args.ledger else None
+    ledger = Ledger.init(args.ledger) if args.ledger else None
     if ledger is not None:
         ledger.append({
             "action": "posture",
@@ -361,7 +389,12 @@ def build_parser() -> argparse.ArgumentParser:
     li.set_defaults(func=cmd_ledger_init)
     lv = lsub.add_parser("verify", help="verify a ledger chain")
     lv.add_argument("dir")
+    lv.add_argument("--anchor", default=None, help="head.json from `ledger anchor`")
     lv.set_defaults(func=cmd_ledger_verify)
+    la = lsub.add_parser("anchor", help="write an anchor document for the chain head")
+    la.add_argument("dir")
+    la.add_argument("--out", default=None)
+    la.set_defaults(func=cmd_ledger_anchor)
 
     sw = sub.add_parser("sweep", help="sweep a path or mailbox")
     sw.add_argument("target")
@@ -370,6 +403,8 @@ def build_parser() -> argparse.ArgumentParser:
     sw.add_argument("--freeze", default=None, help="freeze manifest JSON (path -> sha256)")
     sw.add_argument("--rules-dir", default=None, help="YARA rules directory (default: rules/yara)")
     sw.add_argument("--sig-dir", default=None, help="signature DB directory (default: signatures/)")
+    sw.add_argument("--no-live-av", action="store_true",
+                    help="disable live external AV engines (Defender/ClamAV/YARA) for this sweep")
     sw.add_argument("--rule", default=None, help="only show findings for this rule id")
     sw.add_argument("--json", action="store_true")
     sw.add_argument(
@@ -439,6 +474,7 @@ def build_parser() -> argparse.ArgumentParser:
     sn = sub.add_parser("snapshot", help="capture a runtime snapshot (baseline)")
     sn.add_argument("--out", default=None, help="write snapshot JSON here")
     sn.add_argument("--backend", choices=["auto", "psutil", "windows", "linux"], default="auto")
+    sn.add_argument("--hash-images", action="store_true", help="sha256 each distinct process image (slower; enables AW-P006)")
     sn.add_argument("--json", action="store_true")
     sn.set_defaults(func=cmd_snapshot)
 
@@ -451,6 +487,7 @@ def build_parser() -> argparse.ArgumentParser:
     po.add_argument("--include-loopback", action="store_true")
     po.add_argument("--scan-all", action="store_true", help="suspicion-check every process, not just new ones")
     po.add_argument("--force", action="store_true", help="diff even if baseline backend differs")
+    po.add_argument("--hash-images", action="store_true", help="sha256 process images this pass (needs baseline taken the same way for AW-P006)")
     po.add_argument("--fail-on", choices=["none", "info", "low", "medium", "high", "critical"], default="none")
     po.add_argument("--json", action="store_true")
     po.set_defaults(func=cmd_posture)

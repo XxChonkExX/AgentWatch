@@ -179,6 +179,14 @@ AW_P005 = _rule(
     "baseline snapshot. Kernel-level change is high severity by nature.",
     "tests/test_runtime.py::test_new_driver",
 )
+AW_P006 = _rule(
+    "AW-P006", "high",
+    "Process image changed",
+    "A process identity (executable path) existed in both snapshots but the "
+    "on-disk image hash differs: the binary was replaced. Requires both "
+    "snapshots to have been taken with image hashing enabled.",
+    "tests/test_runtime.py::test_changed_image",
+)
 AW_R001 = _rule(
     "AW-R001", "critical",
     "Frozen record mutated",
@@ -220,7 +228,7 @@ ALL_RULES: tuple[Rule, ...] = (
     AW_S001,
     AW_C001,
     AW_M001, AW_M002, AW_M003,
-    AW_P001, AW_P002, AW_P003, AW_P004, AW_P005,
+    AW_P001, AW_P002, AW_P003, AW_P004, AW_P005, AW_P006,
     AW_R001,
     AW_T001, AW_T002, AW_T003,
 )

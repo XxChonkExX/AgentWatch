@@ -302,19 +302,47 @@ class PsutilCollector:
         )
 
 
-def collect_snapshot(backend: str = "auto") -> RuntimeSnapshot:
+def attach_image_hashes(snapshot: RuntimeSnapshot) -> RuntimeSnapshot:
+    """Fill ProcessInfo.image_sha256, hashing each distinct exe once.
+
+    Replaces processes whose exe can be read; leaves others untouched. Cost
+    is bounded by the number of distinct executable paths, not processes.
+    """
+    from ..core.hashing import hash_file
+
+    cache: dict = {}
+    patched = []
+    for p in snapshot.processes:
+        digest = p.image_sha256
+        exe = p.exe
+        if exe and os.path.isfile(exe):
+            key = exe.lower()
+            if key not in cache:
+                try:
+                    cache[key] = hash_file(exe)
+                except OSError:
+                    cache[key] = ""
+            digest = cache[key] or digest
+        patched.append(ProcessInfo(p.pid, p.ppid, p.name, p.exe, p.cmdline, digest))
+    return RuntimeSnapshot(
+        host=snapshot.host, ts=snapshot.ts, backend=snapshot.backend,
+        processes=tuple(patched), listeners=snapshot.listeners,
+        connections=snapshot.connections, drivers=snapshot.drivers,
+        meta=snapshot.meta,
+    )
+
+
+def collect_snapshot(backend: str = "auto", hash_images: bool = False) -> RuntimeSnapshot:
     if backend == "psutil":
-        return PsutilCollector().collect()
-    if backend == "windows":
-        return WindowsCollector().collect()
-    if backend == "linux":
-        return LinuxCollector().collect()
-    # auto
-    try:
-        import psutil  # noqa: F401
-        return PsutilCollector().collect()
-    except Exception:
-        pass
-    if os.name == "nt":
-        return WindowsCollector().collect()
-    return LinuxCollector().collect()
+        snap = PsutilCollector().collect()
+    elif backend == "windows":
+        snap = WindowsCollector().collect()
+    elif backend == "linux":
+        snap = LinuxCollector().collect()
+    else:
+        try:
+            import psutil  # noqa: F401
+            snap = PsutilCollector().collect()
+        except Exception:
+            snap = WindowsCollector().collect() if os.name == "nt" else LinuxCollector().collect()
+    return attach_image_hashes(snap) if hash_images else snap

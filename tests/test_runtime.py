@@ -137,6 +137,80 @@ class Ipv6Decode(unittest.TestCase):
         self.assertEqual(_decode_ipv6("0" * 32), "0000:0000:0000:0000:0000:0000:0000:0000")
 
 
+class ImageHash(unittest.TestCase):
+    def test_changed_image(self):
+        import dataclasses
+
+        base = snap(processes=[dataclasses.replace(P(1, "svc.exe", "C:/bin/svc.exe"), image_sha256="a" * 64)])
+        cur = snap(processes=[ProcessInfo(2, 0, "svc.exe", "C:/bin/svc.exe", "", "b" * 64)])
+        d = diff_snapshots(base, cur)
+        self.assertEqual(len(d["changed_images"]), 1)
+        f = analyze(d, cur)
+        self.assertIn("AW-P006", ids(f))
+        self.assertEqual([x.severity for x in f if x.rule_id == "AW-P006"], ["high"])
+
+    def test_same_image_no_finding(self):
+        p1 = ProcessInfo(1, 0, "svc.exe", "C:/bin/svc.exe", "", "a" * 64)
+        p2 = ProcessInfo(2, 0, "svc.exe", "C:/bin/svc.exe", "", "a" * 64)
+        f = analyze(diff_snapshots(snap(processes=[p1]), snap(processes=[p2])), snap(processes=[p2]))
+        self.assertNotIn("AW-P006", ids(f))
+
+    def test_serialization_with_image_hash(self):
+        s = snap(processes=[ProcessInfo(1, 0, "a.exe", "C:/a.exe", "", "c" * 64)])
+        s2 = RuntimeSnapshot.from_dict(json.loads(json.dumps(s.to_dict())))
+        self.assertEqual(s.hash(), s2.hash())
+
+    def test_old_baseline_still_loads(self):
+        d = {"host": "x", "ts": "t", "backend": "b",
+             "processes": [{"pid": 1, "ppid": 0, "name": "a.exe", "exe": "", "cmdline": ""}],
+             "listeners": [], "connections": [], "drivers": [], "meta": {}}
+        s = RuntimeSnapshot.from_dict(d)
+        self.assertEqual(s.processes[0].image_sha256, "")
+
+
+class DefenderBridge(unittest.TestCase):
+    def test_unavailable_without_binary(self):
+        from agentwatch.scanners.defender import DefenderScanner
+
+        self.assertFalse(DefenderScanner(binary=r"C:\nope\MpCmdRun.exe").available())
+
+    def test_in_default_pack(self):
+        from agentwatch.scanners.detector import ScannerDetector
+
+        names = [s.name for s in ScannerDetector().scanners]
+        self.assertIn("defender", names)
+
+
+class LedgerAnchor(unittest.TestCase):
+    def test_anchor_and_verify(self):
+        from agentwatch.core.ledger import Ledger
+
+        d = tempfile.mkdtemp()
+        led = Ledger.init(d)
+        for i in range(3):
+            led.append({"action": "read", "target": str(i)})
+        doc = led.anchor_head()
+        self.assertEqual(doc["seq"], 3)
+        ok, problems = led.verify_anchor(doc)
+        self.assertTrue(ok, problems)
+
+    def test_truncation_detected(self):
+        from agentwatch.core.ledger import Ledger
+
+        d = tempfile.mkdtemp()
+        led = Ledger.init(d)
+        for i in range(3):
+            led.append({"action": "read", "target": str(i)})
+        doc = led.anchor_head()
+        with open(led.path, "r", encoding="utf-8") as fh:
+            lines = fh.readlines()
+        with open(led.path, "w", encoding="utf-8", newline="\n") as fh:
+            fh.writelines(lines[:2])  # drop the anchored record
+        ok, problems = led.verify_anchor(doc)
+        self.assertFalse(ok)
+        self.assertTrue(any("truncated" in p for p in problems))
+
+
 class BackendGuard(unittest.TestCase):
     def test_mismatch_refused(self):
         from agentwatch.cli.main import main

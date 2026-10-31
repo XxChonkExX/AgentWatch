@@ -31,6 +31,10 @@ class ProcessInfo:
     name: str
     exe: str = ""
     cmdline: str = ""
+    # Optional sha256 of the on-disk image. Populated only when the snapshot
+    # is taken with image hashing enabled; empty otherwise. Catches a binary
+    # replaced at the same path, which path-identity alone cannot see.
+    image_sha256: str = ""
 
     def identity(self) -> str:
         return norm_path(self.exe) or (self.name or "").lower()

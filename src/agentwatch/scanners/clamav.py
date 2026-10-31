@@ -20,7 +20,11 @@ class ClamAVScanner(Scanner):
     name = "clamav"
 
     def __init__(self, binary: str | None = None):
-        self.binary = binary or shutil.which("clamscan") or shutil.which("clamdscan")
+        # binary="" is the explicit "disabled" sentinel (live_av=False).
+        if binary is not None:
+            self.binary = binary or None
+        else:
+            self.binary = shutil.which("clamscan") or shutil.which("clamdscan")
 
     def available(self) -> bool:
         return bool(self.binary)

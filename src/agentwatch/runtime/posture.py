@@ -13,7 +13,7 @@ from __future__ import annotations
 import re
 
 from ..core.schema import Evidence, Finding, LANE_DETERMINISTIC
-from ..detectors.rules import AW_P001, AW_P002, AW_P003, AW_P004, AW_P005
+from ..detectors.rules import AW_P001, AW_P002, AW_P003, AW_P004, AW_P005, AW_P006
 
 # Deterministic risk markers for AW-P004.
 TEMP_HINTS = ("\\temp\\", "/tmp/", "/dev/shm/", "\\appdata\\local\\temp\\", "/var/tmp/")
@@ -140,6 +140,18 @@ def analyze(diff: dict, snapshot, allow_ports=(), allow_processes=(),
                 "driver:%s" % d.name,
                 "driver/module %s loaded (path=%s state=%s)" % (d.name, d.path or "?", d.state or "?"),
                 note="new kernel driver/module not in baseline",
+            )
+        )
+
+    for ch in diff.get("changed_images", []):
+        findings.append(
+            _finding(
+                AW_P006,
+                "process:%s" % ch["name"],
+                "%s: image replaced at %s (sha %s.. -> %s..)"
+                % (ch["name"], ch["identity"], ch["from"][:12], ch["to"][:12]),
+                severity="high",
+                note="binary replaced at a known path",
             )
         )
 

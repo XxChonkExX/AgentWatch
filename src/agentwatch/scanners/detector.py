@@ -1,9 +1,9 @@
 """Scanner detector: turns scanner hits into Lane-A findings and reports
 scanner availability so an absent scanner is a stated blind spot.
 
-Builtin hits map to AW-M001. External scanner (ClamAV/YARA) hits map to
-AW-M002. Per-hit severity comes from the scanner (a webshell marker is not
-the same as a known-malware signature).
+Builtin hits map to AW-M001, signature-file hits to AW-M003, and everything
+else (ClamAV/YARA/Defender) to AW-M002. Per-hit severity comes from the
+scanner (a webshell marker is not the same as a known-malware signature).
 """
 
 from __future__ import annotations
@@ -13,6 +13,7 @@ from ..detectors.base import Detector
 from ..detectors.rules import AW_M001, AW_M002, AW_M003
 from .builtin import BuiltinSignatureScanner
 from .clamav import ClamAVScanner
+from .defender import DefenderScanner
 from .sigfile import SigFileScanner
 from .yara import YaraScanner
 
@@ -25,12 +26,24 @@ _RULE_BY_SCANNER = {
 }
 
 
-def default_scanners(rules_dir: str | None = None, sig_dir: str | None = None) -> list:
+def default_scanners(rules_dir: str | None = None, sig_dir: str | None = None,
+                     live_av: bool = True) -> list:
+    """Assemble the scanner pack.
+
+    live_av=False constructs the external engines (Defender, ClamAV, YARA)
+    disabled. Tests MUST pass live_av=False: the fixtures contain real
+    malware signatures, and a live engine will correctly detect and
+    quarantine them (demonstrated: Defender flagged our webshell fixture as
+    Backdoor:PHP/Remoteshell.B). Production sweeps default to live engines.
+    """
+    # binary="" is the disable sentinel; None means auto-discover.
+    disabled = None if live_av else ""
     return [
         BuiltinSignatureScanner(),
         SigFileScanner(sig_dir),
-        ClamAVScanner(),
-        YaraScanner(rules_dir),
+        DefenderScanner(binary=disabled),
+        ClamAVScanner(binary=disabled),
+        YaraScanner(rules_dir, binary=disabled),
     ]
 
 
@@ -39,8 +52,8 @@ class ScannerDetector(Detector):
     rule = AW_M001
 
     def __init__(self, scanners=None, rules_dir: str | None = None, sig_dir: str | None = None,
-                 max_scan_bytes: int = DEFAULT_MAX_SCAN_BYTES):
-        self.scanners = scanners if scanners is not None else default_scanners(rules_dir, sig_dir)
+                 live_av: bool = True, max_scan_bytes: int = DEFAULT_MAX_SCAN_BYTES):
+        self.scanners = scanners if scanners is not None else default_scanners(rules_dir, sig_dir, live_av)
         self.max_scan_bytes = max_scan_bytes
 
     def status(self) -> dict:

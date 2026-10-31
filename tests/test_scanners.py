@@ -13,14 +13,14 @@ from agentwatch.scanners.signatures import EICAR  # noqa: E402
 
 class Builtin(unittest.TestCase):
     def test_builtin_eicar_positive(self):
-        findings = ScannerDetector().run(art("sample.txt", b"prefix " + EICAR + b" suffix"))
+        findings = ScannerDetector(live_av=False).run(art("sample.txt", b"prefix " + EICAR + b" suffix"))
         self.assertIn("AW-M001", ids(findings))
 
     def test_builtin_negative(self):
-        self.assertEqual(ScannerDetector().run(art("clean.txt", b"hello world")), [])
+        self.assertEqual(ScannerDetector(live_av=False).run(art("clean.txt", b"hello world")), [])
 
     def test_webshell_marker_positive(self):
-        findings = ScannerDetector().run(art("shell.php", b"<?php eval($_POST['x']); ?>"))
+        findings = ScannerDetector(live_av=False).run(art("shell.php", b"<?php eval($_POST['x']); ?>"))
         self.assertIn("AW-M001", ids(findings))
 
 
@@ -61,7 +61,14 @@ class Wiring(unittest.TestCase):
         self.assertFalse(det.status()["ghost"]["available"])
 
     def test_status_reports_builtin(self):
-        self.assertTrue(ScannerDetector().status()["builtin"]["available"])
+        self.assertTrue(ScannerDetector(live_av=False).status()["builtin"]["available"])
+
+    def test_live_av_disabled_means_external_engines_off(self):
+        st = ScannerDetector(live_av=False).status()
+        self.assertFalse(st["defender"]["available"])
+        self.assertFalse(st["clamav"]["available"])
+        self.assertFalse(st["yara"]["available"])
+        self.assertTrue(st["builtin"]["available"])
 
 
 if __name__ == "__main__":

@@ -33,6 +33,7 @@ def build_detectors(
     rules_dir: str | None = None,
     sig_dir: str | None = None,
     scanners=None,
+    live_av: bool = True,
 ) -> list:
     # Imported here to keep the detector package importable without the
     # scanners package and vice versa.
@@ -49,7 +50,7 @@ def build_detectors(
         MagicMismatchDetector(),
         ScriptObfuscationDetector(),
         CovertWhitespaceDetector(),
-        ScannerDetector(scanners=scanners, rules_dir=rules_dir, sig_dir=sig_dir),
+        ScannerDetector(scanners=scanners, rules_dir=rules_dir, sig_dir=sig_dir, live_av=live_av),
         FrozenGuardDetector(freeze_manifest),
         ThinkLeakDetector(),
         InjectionMarkerDetector(),

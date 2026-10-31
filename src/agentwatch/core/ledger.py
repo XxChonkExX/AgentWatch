@@ -104,3 +104,53 @@ class Ledger:
                 prev = ev.get("hash")
                 expected = int(ev.get("seq", expected)) + 1
         return (not problems, problems)
+
+    def anchor_head(self) -> dict:
+        """Return an anchor document for the current chain head.
+
+        The anchor is the external anchor promised in the module docstring:
+        stored somewhere else than the ledger (another box, cold storage, a
+        signed file), it makes a full-file rewrite detectable, because the
+        rewritten chain will not end at the anchored seq/hash.
+        """
+        records = [r for r in self.read_all()]
+        if not records:
+            return {"seq": 0, "hash": GENESIS, "anchored_utc": _utcnow(), "records": 0}
+        last = records[-1]
+        return {
+            "seq": int(last["seq"]),
+            "hash": last["hash"],
+            "anchored_utc": _utcnow(),
+            "records": len(records),
+        }
+
+    def verify_anchor(self, anchor: dict) -> tuple[bool, list[str]]:
+        problems: list[str] = []
+        records = [r for r in self.read_all()]
+        seq = int(anchor.get("seq", 0))
+        if seq == 0:
+            if records:
+                problems.append("anchor is genesis but ledger has %d record(s)" % len(records))
+            return (not problems, problems)
+        if len(records) < seq:
+            problems.append(
+                "ledger truncated: anchor seq=%d but only %d record(s) present"
+                % (seq, len(records))
+            )
+            return (False, problems)
+        at = next((r for r in records if int(r.get("seq", -1)) == seq), None)
+        if at is None:
+            problems.append("no record at anchored seq=%d" % seq)
+            return (False, problems)
+        if at.get("hash") != anchor.get("hash"):
+            problems.append(
+                "anchor mismatch at seq=%d: anchored=%s actual=%s"
+                % (seq, str(anchor.get("hash"))[:16], str(at.get("hash"))[:16])
+            )
+        return (not problems, problems)
+
+
+def _utcnow() -> str:
+    from datetime import datetime, timezone
+
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")

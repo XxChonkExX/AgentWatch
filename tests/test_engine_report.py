@@ -25,7 +25,7 @@ def _make_dir():
 class Engine(unittest.TestCase):
     def test_sweep_finds_and_reports(self):
         d = _make_dir()
-        engine = SweepEngine(build_detectors())
+        engine = SweepEngine(build_detectors(live_av=False))
         result = engine.sweep(FsCollector(), d)
         ids = [f.rule_id for f in result.findings]
         self.assertIn("AW-U001", ids)
@@ -36,7 +36,7 @@ class Engine(unittest.TestCase):
     def test_sweep_records_ledger(self):
         d = _make_dir()
         led = Ledger.init(tempfile.mkdtemp())
-        engine = SweepEngine(build_detectors(), ledger=led)
+        engine = SweepEngine(build_detectors(live_av=False), ledger=led)
         engine.sweep(FsCollector(), d)
         ok, problems = led.verify()
         self.assertTrue(ok, problems)
@@ -47,7 +47,7 @@ class Engine(unittest.TestCase):
 
     def test_report_json_shape(self):
         d = _make_dir()
-        engine = SweepEngine(build_detectors())
+        engine = SweepEngine(build_detectors(live_av=False))
         result = engine.sweep(FsCollector(), d)
         payload = report_mod.to_dict(result)
         self.assertIn("findings", payload)

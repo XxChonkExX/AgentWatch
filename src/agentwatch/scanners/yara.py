@@ -20,7 +20,11 @@ class YaraScanner(Scanner):
     name = "yara"
 
     def __init__(self, rules_dir: str | None = None, binary: str | None = None):
-        self.binary = binary or shutil.which("yara") or shutil.which("yara64")
+        # binary="" is the explicit "disabled" sentinel (live_av=False).
+        if binary is not None:
+            self.binary = binary or None
+        else:
+            self.binary = shutil.which("yara") or shutil.which("yara64")
         self.rules_dir = rules_dir
 
     def rule_files(self) -> list[str]:
