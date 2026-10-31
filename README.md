@@ -161,6 +161,19 @@ aw probe review workplace_v1 a.jsonl     # the human review sheet
 
 See [docs/PROBES.md](docs/PROBES.md).
 
+## Dashboard
+
+```bash
+pip install -e ".[api]"          # fastapi + uvicorn (optional extra)
+aw serve --ledger ./aw-ledger --open
+```
+
+Opens `http://127.0.0.1:8018/` -- a local, zero-build dashboard (single HTML
+file, vanilla JS, no CDN) over the same engine the CLI uses: sweep, posture
+diff, probe run/score/review, the ledger, and the rule/scanner registry.
+Binds to 127.0.0.1 by design; do not expose it -- the endpoints sweep
+arbitrary local paths on purpose.
+
 ## Runtime posture
 
 ```bash
@@ -175,10 +188,11 @@ different backends. See [docs/RUNTIME.md](docs/RUNTIME.md).
 
 ## Status
 
-M0-M3 complete: ledger, sweepers, detector pack, ScannerBridge with open
-signature DBs, the Crucible probe-pack port, and runtime posture. Calibrated
-against a real 742-file agent mailbox (149 raw findings to 32, nothing
-hidden) and live-tested on Windows and Linux/WSL (a real listener on both was
-caught as high). Next: the browser dashboard, Defender/AMSI bridge, and
-frozen-record anchoring -- anchoring lands before any "hidden danger" claim is
-strengthened beyond what the snapshot diff can honestly see.
+M0-M4 complete: ledger, sweepers, detector pack, ScannerBridge with open
+signature DBs, the Crucible probe-pack port, runtime posture, and the local
+dashboard. Calibrated against a real 742-file agent mailbox (149 raw findings
+to 32, nothing hidden) and live-tested on Windows and Linux/WSL (real
+listeners caught high on both). Remaining: Defender/AMSI bridge, executable
+hashing for process identity, and ledger anchoring -- anchoring lands before
+any "hidden danger" claim is strengthened beyond what the snapshot diff can
+honestly see.

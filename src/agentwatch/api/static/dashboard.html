@@ -1,0 +1,412 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AgentWatch</title>
+<style>
+  :root {
+    --bg:#0e1116; --panel:#161b22; --panel2:#1c2330; --line:#2a3140;
+    --fg:#d7dde6; --dim:#8a94a6; --acc:#58a6ff;
+    --crit:#f85149; --high:#f0883e; --med:#e3b341; --low:#58a6ff; --info:#8a94a6;
+    --ctx:#bc8cff; --ok:#3fb950;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg);
+         font:14px/1.5 "Cascadia Mono",Consolas,monospace; }
+  header { display:flex; align-items:baseline; gap:16px; padding:14px 20px;
+           border-bottom:1px solid var(--line); background:var(--panel); }
+  header h1 { margin:0; font-size:18px; letter-spacing:1px; }
+  header .sub { color:var(--dim); font-size:12px; }
+  header .right { margin-left:auto; color:var(--dim); font-size:12px; }
+  nav { display:flex; gap:2px; padding:0 20px; background:var(--panel);
+        border-bottom:1px solid var(--line); }
+  nav button { background:none; border:none; border-bottom:2px solid transparent;
+               color:var(--dim); padding:10px 16px; cursor:pointer;
+               font:inherit; }
+  nav button.active { color:var(--fg); border-bottom-color:var(--acc); }
+  main { padding:20px; max-width:1400px; }
+  section.tab { display:none; }
+  section.tab.active { display:block; }
+  .row { display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end; }
+  label { display:block; color:var(--dim); font-size:11px; margin-bottom:3px; }
+  input, select { background:var(--panel2); color:var(--fg); border:1px solid var(--line);
+                  padding:7px 9px; border-radius:4px; font:inherit; min-width:120px; }
+  input[type=text] { min-width:320px; }
+  input[type=number] { width:90px; }
+  button.go { background:var(--acc); color:#04121f; border:none; padding:8px 18px;
+              border-radius:4px; cursor:pointer; font:inherit; font-weight:bold; }
+  button.go:disabled { opacity:.5; cursor:default; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:6px;
+          padding:14px 16px; margin-top:14px; }
+  .card h3 { margin:0 0 10px; font-size:12px; color:var(--dim); letter-spacing:1px;
+             text-transform:uppercase; }
+  .summary { display:flex; gap:18px; flex-wrap:wrap; margin:8px 0; }
+  .summary .k { color:var(--dim); font-size:11px; }
+  .summary .v { font-size:15px; }
+  .sev { display:inline-block; padding:1px 7px; border-radius:3px; font-size:11px;
+         font-weight:bold; color:#0b0f14; }
+  .sev.critical { background:var(--crit); } .sev.high { background:var(--high); }
+  .sev.medium { background:var(--med); } .sev.low { background:var(--low); }
+  .sev.info { background:var(--info); }
+  .ctx { display:inline-block; padding:1px 6px; border-radius:3px; font-size:10px;
+         background:var(--ctx); color:#140b1f; margin-left:6px; }
+  table { width:100%; border-collapse:collapse; margin-top:8px; }
+  th, td { text-align:left; padding:6px 8px; border-bottom:1px solid var(--line);
+           vertical-align:top; font-size:12.5px; }
+  th { color:var(--dim); font-weight:normal; font-size:11px; text-transform:uppercase; }
+  td .t { color:var(--dim); word-break:break-all; }
+  pre { background:var(--panel2); border:1px solid var(--line); border-radius:6px;
+        padding:12px; overflow:auto; max-height:520px; white-space:pre-wrap;
+        font-size:12px; }
+  .msg { margin-top:12px; padding:10px 12px; border-radius:4px; }
+  .msg.err { background:#2d1517; border:1px solid var(--crit); color:#ffb3ad; }
+  .msg.ok  { background:#12261a; border:1px solid var(--ok); color:#7ee2a0; }
+  .muted { color:var(--dim); }
+  .bar { height:6px; background:var(--panel2); border-radius:3px; min-width:80px; }
+  .bar i { display:block; height:6px; border-radius:3px; background:var(--acc); }
+</style>
+</head>
+<body>
+<header>
+  <h1>AGENTWATCH</h1>
+  <span class="sub">deterministic monitoring for agent swarms</span>
+  <span class="right" id="health">connecting...</span>
+</header>
+<nav>
+  <button data-tab="sweep" class="active">Sweep</button>
+  <button data-tab="posture">Posture</button>
+  <button data-tab="probes">Probes</button>
+  <button data-tab="ledger">Ledger</button>
+  <button data-tab="rules">Rules</button>
+</nav>
+<main>
+
+<section class="tab active" id="tab-sweep">
+  <div class="card">
+    <h3>Sweep a target (workspace / mailbox / file)</h3>
+    <div class="row">
+      <div><label>target path</label><input type="text" id="sw-target" placeholder="C:\path\to\sweep"></div>
+      <div><label>collector</label><select id="sw-kind"><option value="">auto</option><option value="fs">fs</option><option value="mail">mail</option></select></div>
+      <div><label>ledger dir (optional)</label><input type="text" id="sw-ledger" placeholder=".\aw-ledger"></div>
+      <div><label>rule filter</label><input type="text" id="sw-rule" placeholder="AW-U001" style="min-width:110px"></div>
+      <button class="go" id="sw-go">Sweep</button>
+    </div>
+    <div id="sw-msg"></div>
+  </div>
+  <div id="sw-out"></div>
+</section>
+
+<section class="tab" id="tab-posture">
+  <div class="card">
+    <h3>Runtime posture (baseline diff)</h3>
+    <div class="row">
+      <div><label>baseline json</label><input type="text" id="po-baseline" placeholder="C:\path\baseline.json"></div>
+      <div><label>backend</label><select id="po-backend"><option value="auto">auto</option><option value="psutil">psutil</option><option value="windows">windows</option><option value="linux">linux</option></select></div>
+      <div><label>allow ports (csv)</label><input type="text" id="po-ports" placeholder="8018,8012" style="min-width:130px"></div>
+      <div><label>allow process (csv)</label><input type="text" id="po-proc" placeholder="python.exe" style="min-width:150px"></div>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <label style="display:flex;gap:6px;align-items:center;color:var(--fg)"><input type="checkbox" id="po-scanall" style="min-width:auto"> scan-all processes</label>
+      <label style="display:flex;gap:6px;align-items:center;color:var(--fg)"><input type="checkbox" id="po-loop" style="min-width:auto"> include loopback</label>
+      <button class="go" id="po-go">Diff posture</button>
+      <button class="go" id="po-snap" style="background:var(--panel2);color:var(--fg);border:1px solid var(--line)">Take snapshot (baseline)</button>
+    </div>
+    <div id="po-msg"></div>
+  </div>
+  <div id="po-out"></div>
+</section>
+
+<section class="tab" id="tab-probes">
+  <div class="card">
+    <h3>Probe packs (Crucible batteries)</h3>
+    <div class="row">
+      <div><label>pack</label><select id="pr-pack"></select></div>
+      <div><label>target url (OpenAI-compatible)</label><input type="text" id="pr-url" value="http://127.0.0.1:8012"></div>
+      <div><label>model</label><input type="text" id="pr-model" value="local" style="min-width:110px"></div>
+      <div><label>arm</label><input type="text" id="pr-arm" placeholder="agent-a" style="min-width:110px"></div>
+      <div><label>limit</label><input type="number" id="pr-limit" value="0" min="0" style="min-width:70px"></div>
+      <button class="go" id="pr-run">Run pack</button>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <div><label>transcripts to score (csv of paths)</label><input type="text" id="pr-trans" style="min-width:420px" placeholder="C:\temp\transcripts_x.jsonl"></div>
+      <div><label>reference arm</label><input type="text" id="pr-ref" style="min-width:110px" placeholder="agent-a"></div>
+      <button class="go" id="pr-score">Score</button>
+      <button class="go" id="pr-review" style="background:var(--panel2);color:var(--fg);border:1px solid var(--line)">Review sheet</button>
+    </div>
+    <div id="pr-msg"></div>
+  </div>
+  <div id="pr-out"></div>
+</section>
+
+<section class="tab" id="tab-ledger">
+  <div class="card">
+    <h3>Ledger (append-only, hash-chained)</h3>
+    <div class="row">
+      <button class="go" id="ld-refresh">Refresh</button>
+      <span class="muted" id="ld-status"></span>
+    </div>
+  </div>
+  <div class="card"><div id="ld-out"></div></div>
+</section>
+
+<section class="tab" id="tab-rules">
+  <div class="card"><h3>Rule registry</h3><div id="ru-out"></div></div>
+  <div class="card"><h3>Scanner status</h3><div id="sc-out"></div></div>
+</section>
+
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s == null ? "" : s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+async function api(path, opts) {
+  const r = await fetch(path, opts);
+  let body = null;
+  try { body = await r.json(); } catch (e) { /* non-json */ }
+  if (!r.ok) throw new Error((body && (body.detail || body.error)) || ("HTTP " + r.status));
+  return body;
+}
+
+function msg(id, text, cls) {
+  const el = $(id);
+  el.innerHTML = text ? '<div class="msg ' + (cls||"") + '">' + esc(text) + '</div>' : "";
+}
+
+function sevBadge(s) { return '<span class="sev ' + esc(s) + '">' + esc(s) + '</span>'; }
+
+function remember() {
+  const ids = ["sw-target","sw-ledger","po-baseline","pr-url","pr-model","pr-arm"];
+  for (const id of ids) {
+    const el = $(id);
+    el.addEventListener("change", () => localStorage.setItem("aw_" + id, el.value));
+    const v = localStorage.getItem("aw_" + id);
+    if (v) el.value = v;
+  }
+}
+
+// ---- tabs ----
+document.querySelectorAll("nav button").forEach(b => {
+  b.onclick = () => {
+    document.querySelectorAll("nav button").forEach(x => x.classList.remove("active"));
+    document.querySelectorAll("section.tab").forEach(x => x.classList.remove("active"));
+    b.classList.add("active");
+    $("tab-" + b.dataset.tab).classList.add("active");
+    if (b.dataset.tab === "ledger") loadLedger();
+    if (b.dataset.tab === "rules") loadRules();
+  };
+});
+
+// ---- findings rendering ----
+function findingsTable(findings, withContext) {
+  if (!findings || !findings.length) return '<p class="muted">none</p>';
+  let rows = "";
+  for (const f of findings) {
+    rows += "<tr><td>" + sevBadge(f.severity) + "</td>" +
+            "<td>" + esc(f.rule_id) + (f.context ? '<span class="ctx">' + esc(f.context) + '</span>' : "") + "</td>" +
+            "<td>" + esc(f.title) + "<div class='t'>" + esc(f.detail) + "</div></td>" +
+            "<td class='t'>" + esc(f.target) + "</td></tr>";
+  }
+  return '<table><tr><th>sev</th><th>rule</th><th>detail</th><th>target</th></tr>' + rows + "</table>";
+}
+
+function summaryCard(pairs) {
+  return '<div class="summary">' + pairs.map(p =>
+    '<div><div class="k">' + esc(p[0]) + '</div><div class="v">' + esc(p[1]) + '</div></div>').join("") + "</div>";
+}
+
+function countsLine(c) {
+  return "critical=" + (c.critical||0) + "  high=" + (c.high||0) + "  medium=" + (c.medium||0) +
+         "  low=" + (c.low||0) + "  info=" + (c.info||0);
+}
+
+function limitsCard(title, lines) {
+  return '<div class="card"><h3>' + esc(title) + '</h3><pre style="max-height:260px">' +
+         esc(lines.join("\n")) + '</pre></div>';
+}
+
+// ---- health ----
+async function loadHealth() {
+  try {
+    const h = await api("/health");
+    $("health").textContent = "v" + h.version + "  |  " + h.rules + " rules  |  ledger: " + (h.ledger || "none");
+  } catch (e) { $("health").textContent = "api unavailable: " + e.message; }
+}
+
+// ---- sweep ----
+$("sw-go").onclick = async () => {
+  const target = $("sw-target").value.trim();
+  if (!target) return msg("sw-msg", "enter a target path", "err");
+  $("sw-go").disabled = true; msg("sw-msg", "sweeping " + target + " ...");
+  try {
+    const body = { target: target };
+    if ($("sw-kind").value) body.kind = $("sw-kind").value;
+    if ($("sw-ledger").value.trim()) body.ledger_dir = $("sw-ledger").value.trim();
+    const p = await api("/sweep", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(body) });
+    msg("sw-msg", "done: " + p.artifacts_scanned + " artifacts, " + p.findings.length + " findings", "ok");
+    let html = '<div class="card"><h3>result</h3>' +
+      summaryCard([["target", p.target], ["collector", p.collector],
+                   ["scanned", p.artifacts_scanned + " artifacts / " + p.bytes_scanned + " bytes"],
+                   ["findings", p.findings.length], ["breakdown", countsLine(p.counts)]]) +
+      '</div><div class="card"><h3>findings</h3>' + findingsTable(p.findings) + '</div>';
+    html += limitsCard("coverage & limits", p.coverage_limits);
+    $("sw-out").innerHTML = html;
+  } catch (e) { msg("sw-msg", e.message, "err"); }
+  $("sw-go").disabled = false;
+};
+
+// ---- posture ----
+$("po-snap").onclick = async () => {
+  msg("po-msg", "capturing snapshot ...");
+  try {
+    const p = await api("/snapshot", { method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({ backend: $("po-backend").value }) });
+    msg("po-msg", "snapshot: " + p.counts.processes + " procs, " + p.counts.listeners +
+                  " listeners, sha=" + p.sha256.slice(0,16) + " (save it with a baseline path via CLI, or diff against an existing file)", "ok");
+  } catch (e) { msg("po-msg", e.message, "err"); }
+};
+
+$("po-go").onclick = async () => {
+  const baseline = $("po-baseline").value.trim();
+  if (!baseline) return msg("po-msg", "enter a baseline json path", "err");
+  $("po-go").disabled = true; msg("po-msg", "collecting current posture ...");
+  try {
+    const ports = $("po-ports").value.split(",").map(s => parseInt(s.trim())).filter(x => !isNaN(x));
+    const procs = $("po-proc").value.split(",").map(s => s.trim()).filter(x => x);
+    const body = { baseline: baseline, backend: $("po-backend").value,
+                   allow_ports: ports, allow_process: procs,
+                   scan_all: $("po-scanall").checked, include_loopback: $("po-loop").checked };
+    const p = await api("/posture", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(body) });
+    if (p.error) { msg("po-msg", p.error, "err"); $("po-go").disabled = false; return; }
+    msg("po-msg", "diff complete", "ok");
+    let html = '<div class="card"><h3>result</h3>' +
+      summaryCard([["host", p.host], ["backend", p.backend],
+        ["visible", "proc=" + p.visible.processes + " listen=" + p.visible.listeners +
+                    " conn=" + p.visible.connections + " drivers=" + p.visible.drivers],
+        ["changes", "+proc=" + (p.changes.added_processes||0) + " +listen=" + (p.changes.added_listeners||0) +
+                    " +conn=" + (p.changes.added_connections||0) + " +driver=" + (p.changes.added_drivers||0)],
+        ["findings", p.findings.length], ["breakdown", countsLine(p.counts)]]) +
+      '</div><div class="card"><h3>findings</h3>' + findingsTable(p.findings) + '</div>';
+    html += limitsCard("coverage & limits", p.coverage_limits);
+    $("po-out").innerHTML = html;
+  } catch (e) { msg("po-msg", e.message, "err"); }
+  $("po-go").disabled = false;
+};
+
+// ---- probes ----
+async function loadPacks() {
+  try {
+    const packs = await api("/packs");
+    $("pr-pack").innerHTML = packs.map(p =>
+      '<option value="' + esc(p.name) + '">' + esc(p.name) + " (" + p.n + ")" + (p.frozen ? "" : " [unfrozen]") + '</option>').join("");
+  } catch (e) { $("pr-pack").innerHTML = '<option>unavailable</option>'; }
+}
+
+$("pr-run").onclick = async () => {
+  $("pr-run").disabled = true; msg("pr-msg", "running pack against " + $("pr-url").value + " ...");
+  try {
+    const body = { pack: $("pr-pack").value, target_url: $("pr-url").value.trim(),
+                   model: $("pr-model").value.trim() || "local",
+                   arm: $("pr-arm").value.trim() || undefined };
+    const lim = parseInt($("pr-limit").value);
+    if (lim > 0) body.limit = lim;
+    const p = await api("/probes/run", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(body) });
+    $("pr-trans").value = p.transcripts;
+    if (!$("pr-arm").value) $("pr-arm").value = p.target;
+    msg("pr-msg", "ran " + p.n + " probes -> " + p.transcripts, "ok");
+  } catch (e) { msg("pr-msg", e.message, "err"); }
+  $("pr-run").disabled = false;
+};
+
+$("pr-score").onclick = async () => {
+  const t = $("pr-trans").value.split(",").map(s => s.trim()).filter(x => x);
+  if (!t.length) return msg("pr-msg", "run a pack first (or enter transcripts paths)", "err");
+  $("pr-score").disabled = true; msg("pr-msg", "scoring ...");
+  try {
+    const body = { transcripts: t };
+    if ($("pr-ref").value.trim()) body.ref = $("pr-ref").value.trim();
+    const p = await api("/probes/score", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(body) });
+    let html = '<div class="card"><h3>probe report</h3>' +
+      summaryCard([["reference", p.reference || "-"], ["degen", p.arms && p.reference ? (p.arms[p.reference].degen_verdict) : "-"]]) +
+      "</div>";
+    for (const arm of Object.keys(p.arms || {}).sort()) {
+      const s = p.arms[arm];
+      let rows = "";
+      for (const name of Object.keys(s.metrics)) {
+        const m = s.metrics[name];
+        if ("rate" in m) {
+          rows += "<tr><td>" + esc(name) + "</td><td>" + m.rate.toFixed(3) + "</td><td>" + m.n +
+                  "</td><td>[" + m.ci[0].toFixed(3) + ", " + m.ci[1].toFixed(3) + ']</td><td><div class="bar"><i style="width:' +
+                  (m.rate*100).toFixed(0) + '%"></i></div></td></tr>';
+        } else if ("value" in m) {
+          rows += "<tr><td>" + esc(name) + "</td><td colspan=4>" + esc(m.value) + "</td></tr>";
+        }
+      }
+      html += '<div class="card"><h3>arm ' + esc(arm) + " (n=" + s.n + ", " + esc(s.degen_verdict) + ')</h3>' +
+        '<table><tr><th>metric</th><th>rate</th><th>n</th><th>ci95</th><th></th></tr>' + rows + "</table></div>";
+    }
+    if (p.coupled && p.coupled.length) {
+      html += '<div class="card"><h3>coupled-metric gate (anti-gaming)</h3>' +
+        p.coupled.map(f => "<p>[" + esc(f.arm) + "] " + esc(f.note) + "</p>").join("") + "</div>";
+    }
+    $("pr-out").innerHTML = html;
+    msg("pr-msg", "scored. rates rank transcripts for review - the verdict is yours.", "ok");
+  } catch (e) { msg("pr-msg", e.message, "err"); }
+  $("pr-score").disabled = false;
+};
+
+$("pr-review").onclick = async () => {
+  const pack = $("pr-pack").value;
+  const t = $("pr-trans").value.split(",")[0].trim();
+  if (!t) return msg("pr-msg", "enter a transcripts path", "err");
+  try {
+    const p = await api("/probes/review?pack=" + encodeURIComponent(pack) + "&transcripts=" + encodeURIComponent(t));
+    $("pr-out").innerHTML = '<div class="card"><h3>human review sheet</h3><pre>' + esc(p.sheet) + "</pre></div>";
+  } catch (e) { msg("pr-msg", e.message, "err"); }
+};
+
+// ---- ledger ----
+async function loadLedger() {
+  try {
+    const p = await api("/ledger/recent?limit=100");
+    $("ld-status").textContent = p.total + " records, chain " + (p.chain_ok ? "OK" : "TAMPERED");
+    const rows = p.records.map(r =>
+      "<tr><td>" + r.seq + "</td><td>" + esc(r.action) + "</td><td class='t'>" +
+      esc(r.target || r.pack || "") + "</td><td>" + esc(r.rule_id || "") + "</td><td class='t'>" +
+      esc(r.ts || "") + "</td></tr>").join("");
+    $("ld-out").innerHTML = '<table><tr><th>seq</th><th>action</th><th>target</th><th>rule</th><th>ts</th></tr>' +
+      (rows || '<tr><td colspan=5 class="muted">empty</td></tr>') + "</table>";
+  } catch (e) {
+    $("ld-out").innerHTML = '<p class="muted">no ledger configured on the server</p>';
+    $("ld-status").textContent = "";
+  }
+}
+$("ld-refresh").onclick = loadLedger;
+
+// ---- rules ----
+async function loadRules() {
+  try {
+    const rules = await api("/rules");
+    const rows = rules.map(r =>
+      "<tr><td>" + esc(r.rule_id) + '</td><td><span class="sev ' + esc(r.severity) + '">' + esc(r.severity) +
+      '</span></td><td>' + esc(r.lane) + "</td><td>" + esc(r.title) + '<div class="t">' + esc(r.description) +
+      '</div></td><td class="t">' + esc(r.falsifier) + "</td></tr>").join("");
+    $("ru-out").innerHTML = '<table><tr><th>rule</th><th>sev</th><th>lane</th><th>title</th><th>falsifier</th></tr>' + rows + "</table>";
+    const sc = await api("/scanners");
+    $("sc-out").innerHTML = '<table><tr><th>scanner</th><th>state</th><th>version</th></tr>' +
+      Object.keys(sc).sort().map(n =>
+        "<tr><td>" + esc(n) + '</td><td>' + (sc[n].available ? '<span class="sev low">available</span>' : '<span class="sev info">UNAVAILABLE</span>') +
+        "</td><td class='t'>" + esc(sc[n].version || "-") + "</td></tr>").join("") + "</table>";
+  } catch (e) {
+    $("ru-out").innerHTML = '<p class="muted">' + esc(e.message) + "</p>";
+  }
+}
+
+// ---- boot ----
+remember();
+loadHealth();
+loadPacks();
+setInterval(loadHealth, 15000);
+</script>
+</body>
+</html>

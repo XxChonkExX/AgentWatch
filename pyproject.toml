@@ -23,4 +23,4 @@ aw = "agentwatch.cli.main:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-agentwatch = ["probes/packs/*.jsonl", "probes/packs/*.json"]
+agentwatch = ["probes/packs/*.jsonl", "probes/packs/*.json", "api/static/*.html"]

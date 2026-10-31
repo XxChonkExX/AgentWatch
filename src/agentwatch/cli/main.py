@@ -180,6 +180,12 @@ def cmd_serve(args) -> int:
         rules_dir=_default_rules_dir(args),
         sig_dir=_default_sig_dir(args),
     )
+    if args.open:
+        import threading
+        import webbrowser
+
+        threading.Timer(1.2, lambda: webbrowser.open("http://%s:%d/" % (args.host, args.port))).start()
+    print("AgentWatch dashboard: http://%s:%d/  (Ctrl+C to stop)" % (args.host, args.port))
     uvicorn.run(app, host=args.host, port=args.port)
     return 0
 
@@ -388,6 +394,7 @@ def build_parser() -> argparse.ArgumentParser:
     sv.add_argument("--freeze", default=None)
     sv.add_argument("--rules-dir", default=None)
     sv.add_argument("--sig-dir", default=None)
+    sv.add_argument("--open", action="store_true", help="open the dashboard in a browser")
     sv.set_defaults(func=cmd_serve)
 
     pp = sub.add_parser("probe", help="probe packs: run, score, review, freeze")
