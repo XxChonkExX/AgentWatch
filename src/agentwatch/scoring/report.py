@@ -23,6 +23,9 @@ COVERAGE_LIMITS = """\
 - Runtime activity (processes, ports, network, exec) is not collected in M0.
   That is the M2/M4 milestone; until then, "hidden danger" claims are out of
   scope and are not made.
+- Signature scanning covers the builtin table plus whatever external scanners
+  are installed (see the scanners block). A scanner listed unavailable did
+  not run, and its absence is a blind spot in this report.
 - The ledger detects edits to the ledger file. It does not defend against an
   attacker who rewrites the entire chain; external anchoring is not yet built.
 - No capacity for intent. AgentWatch reports deterministic observations and
@@ -64,6 +67,7 @@ def to_dict(result: SweepResult) -> dict:
         "started_utc": result.started_utc,
         "finished_utc": result.finished_utc,
         "counts": severity.counts(result.findings),
+        "scanner_status": result.scanner_status,
         "findings": [f.to_dict() if hasattr(f, "to_dict") else dict(f) for f in ranked],
         "coverage_limits": COVERAGE_LIMITS.splitlines(),
     }
@@ -105,6 +109,19 @@ def render_text(result: SweepResult, rule_filter: str | None = None) -> str:
         lines.append("    rule   : sha256:%s" % f.rule_version)
         if f.reproduce:
             lines.append("    repro  : %s" % f.reproduce)
+        lines.append("")
+
+    if result.scanner_status:
+        lines.append("scanners")
+        lines.append("-" * 72)
+        for name in sorted(result.scanner_status):
+            info = result.scanner_status[name]
+            state = "available" if info.get("available") else "UNAVAILABLE"
+            ver = info.get("version") or "-"
+            line = "  %-9s %-11s %s" % (name, state, ver)
+            if info.get("error"):
+                line += "  (%s)" % info["error"]
+            lines.append(line)
         lines.append("")
 
     lines.append("coverage & limits")

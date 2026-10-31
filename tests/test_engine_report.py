@@ -53,6 +53,8 @@ class Engine(unittest.TestCase):
         self.assertIn("findings", payload)
         self.assertIn("counts", payload)
         self.assertIn("coverage_limits", payload)
+        self.assertIn("scanner_status", payload)
+        self.assertIn("builtin", payload["scanner_status"])
 
 
 if __name__ == "__main__":

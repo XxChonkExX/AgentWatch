@@ -29,12 +29,29 @@ class SweepResult:
     findings: list[Finding] = field(default_factory=list)
     started_utc: str = ""
     finished_utc: str = ""
+    scanner_status: dict = field(default_factory=dict)
 
 
 class SweepEngine:
     def __init__(self, detectors: Sequence, ledger: Ledger | None = None):
         self.detectors = list(detectors)
         self.ledger = ledger
+
+    def _scanner_status(self) -> dict:
+        status: dict = {}
+        for detector in self.detectors:
+            fn = getattr(detector, "status", None)
+            if not callable(fn):
+                continue
+            try:
+                status.update(fn())
+            except Exception as exc:
+                status[getattr(detector, "name", "scanner")] = {
+                    "available": False,
+                    "version": None,
+                    "error": str(exc),
+                }
+        return status
 
     def sweep(self, collector, target: str) -> SweepResult:
         started = utcnow()
@@ -75,6 +92,7 @@ class SweepEngine:
                         self.ledger.append(rec)
 
         finished = utcnow()
+        scanner_status = self._scanner_status()
         result = SweepResult(
             target=target,
             collector=getattr(collector, "name", "unknown"),
@@ -84,6 +102,7 @@ class SweepEngine:
             findings=findings,
             started_utc=started,
             finished_utc=finished,
+            scanner_status=scanner_status,
         )
         if self.ledger is not None:
             self.ledger.append(
@@ -92,6 +111,7 @@ class SweepEngine:
                     "target": target,
                     "artifacts": artifacts,
                     "findings": len(findings),
+                    "scanner_status": scanner_status,
                 }
             )
         return result

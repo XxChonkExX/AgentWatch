@@ -19,7 +19,11 @@ from ..scoring import report as report_mod
 from ..detectors.frozen_guard import load_manifest
 
 
-def create_app(ledger_dir: str | None = None, freeze_manifest: dict | None = None):
+def create_app(
+    ledger_dir: str | None = None,
+    freeze_manifest: dict | None = None,
+    rules_dir: str | None = None,
+):
     from fastapi import Body, FastAPI, HTTPException
 
     app = FastAPI(title="AgentWatch", version=__version__)
@@ -49,7 +53,7 @@ def create_app(ledger_dir: str | None = None, freeze_manifest: dict | None = Non
             freeze = load_manifest(payload["freeze"])
         from ..cli.main import pick_collector
 
-        detectors = build_detectors(freeze)
+        detectors = build_detectors(freeze, rules_dir=rules_dir)
         engine = SweepEngine(detectors, ledger=ledger)
         collector = pick_collector(target, kind)
         result = engine.sweep(collector, target)

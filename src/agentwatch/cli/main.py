@@ -100,9 +100,16 @@ def cmd_ledger_verify(args) -> int:
     return 1
 
 
+def _default_rules_dir(args) -> str | None:
+    if getattr(args, "rules_dir", None):
+        return args.rules_dir
+    candidate = _repo_root() / "rules" / "yara"
+    return str(candidate) if candidate.is_dir() else None
+
+
 def cmd_sweep(args) -> int:
     freeze = load_manifest(args.freeze) if args.freeze else None
-    detectors = build_detectors(freeze)
+    detectors = build_detectors(freeze, rules_dir=_default_rules_dir(args))
     ledger = Ledger(args.ledger) if args.ledger else None
     collector = pick_collector(args.target, args.kind)
     engine = SweepEngine(detectors, ledger=ledger)
@@ -152,7 +159,11 @@ def cmd_serve(args) -> int:
     import uvicorn
 
     freeze = load_manifest(args.freeze) if args.freeze else None
-    app = create_app(ledger_dir=args.ledger, freeze_manifest=freeze)
+    app = create_app(
+        ledger_dir=args.ledger,
+        freeze_manifest=freeze,
+        rules_dir=_default_rules_dir(args),
+    )
     uvicorn.run(app, host=args.host, port=args.port)
     return 0
 
@@ -176,6 +187,7 @@ def build_parser() -> argparse.ArgumentParser:
     sw.add_argument("--kind", choices=["fs", "mail"], default=None)
     sw.add_argument("--ledger", default=None, help="ledger directory to record into")
     sw.add_argument("--freeze", default=None, help="freeze manifest JSON (path -> sha256)")
+    sw.add_argument("--rules-dir", default=None, help="YARA rules directory (default: rules/yara)")
     sw.add_argument("--rule", default=None, help="only show findings for this rule id")
     sw.add_argument("--json", action="store_true")
     sw.add_argument(
@@ -198,6 +210,7 @@ def build_parser() -> argparse.ArgumentParser:
     sv.add_argument("--port", type=int, default=8018)
     sv.add_argument("--ledger", default=None)
     sv.add_argument("--freeze", default=None)
+    sv.add_argument("--rules-dir", default=None)
     sv.set_defaults(func=cmd_serve)
 
     return p

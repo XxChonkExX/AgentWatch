@@ -114,6 +114,22 @@ AW_C001 = _rule(
     "exists -- but it is stable evidence when it repeats.",
     "tests/test_covert_channel.py::test_trailing_positive",
 )
+AW_M001 = _rule(
+    "AW-M001", "critical",
+    "Builtin signature match",
+    "A byte pattern in the builtin signature table (EICAR, webshell markers, "
+    "reverse-shell markers, miner markers). High-signal and deterministic, "
+    "but a small curated set, not a substitute for a full antivirus.",
+    "tests/test_scanners.py::test_builtin_eicar_positive",
+)
+AW_M002 = _rule(
+    "AW-M002", "critical",
+    "External scanner signature match",
+    "A match from a bridged external scanner (ClamAV or YARA). The scanner and "
+    "its signature-set version are recorded per hit so the match is "
+    "reproducible against the same signatures.",
+    "tests/test_scanners.py::test_external_scanner_wiring",
+)
 AW_R001 = _rule(
     "AW-R001", "critical",
     "Frozen record mutated",
@@ -154,6 +170,7 @@ ALL_RULES: tuple[Rule, ...] = (
     AW_F001, AW_F002, AW_F003,
     AW_S001,
     AW_C001,
+    AW_M001, AW_M002,
     AW_R001,
     AW_T001, AW_T002, AW_T003,
 )

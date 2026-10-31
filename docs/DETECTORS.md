@@ -18,6 +18,8 @@ finding was made.
 | AW-F003 | A | high | magic-byte mismatch / double extension | `sample`, `name`, `ext` | `tests/test_magic_mismatch.py::test_magic_positive` |
 | AW-S001 | A | medium | script obfuscation / execution markers | `text` | `tests/test_script_obfuscation.py::test_obfuscation_positive` |
 | AW-C001 | A | low | covert whitespace channel | `text` | `tests/test_covert_channel.py::test_trailing_positive` |
+| AW-M001 | A | critical | builtin signature match | `sample` | `tests/test_scanners.py::test_builtin_eicar_positive` |
+| AW-M002 | A | critical | external scanner signature match | `sample` | `tests/test_scanners.py::test_external_scanner_wiring` |
 | AW-R001 | A | critical | frozen record mutated | `manifest`, `sha256` | `tests/test_frozen_guard.py::test_frozen_positive` |
 | AW-T001 | A | medium | thinking / containment leak tokens | `text` | `tests/test_thinking_gate.py::test_leak_positive` |
 | AW-T002 | A | medium | prompt-injection / override markers | `text` | `tests/test_thinking_gate.py::test_injection_positive` |
@@ -50,9 +52,27 @@ See the `coverage & limits` block in every report. In brief: no runtime
 activity (process/port/network/exec), no NTFS stream content, no anchoring of
 the ledger against full-file rewrite, no lane-B classifier.
 
+## ScannerBridge (M1)
+
+The scanner pack wraps, never reimplements:
+
+- **builtin** (always available): a small curated signature table (EICAR,
+  webshell markers, reverse-shell markers, miner markers, certutil urlcache).
+  Zero dependencies. AW-M001.
+- **clamav** (optional): wraps `clamscan`/`clamdscan` if on PATH, records the
+  signature-database version per hit. AW-M002.
+- **yara** (optional): wraps the `yara` CLI against `rules/yara` (or
+  `--rules-dir`). Rule matches default to severity `high` until meta parsing
+  lands. AW-M002.
+
+Scanners that are not installed are reported `UNAVAILABLE` in the sweep
+report's scanners block and in `scanner_status`. An absent scanner is a stated
+blind spot, not a silent pass. Scanners run on the capped 4 MiB sample, so a
+signature beyond the cap is not matched (stated in coverage/limits).
+
 ## Roadmap for the pack
 
-- ScannerBridge: ClamAV + YARA + Defender/AMSI as wrapped integrations.
+- ScannerBridge: Defender/AMSI bridge; YARA meta/severity parsing.
 - Probe-pack port: the Crucible batteries extended to agentic behaviours
   (tool-scope-creep, exfiltration intent, self-preservation, unrequested
   mutation, sandbox-escape attempts), scored with n and coupled-metric gates.

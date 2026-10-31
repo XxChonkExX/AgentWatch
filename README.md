@@ -12,12 +12,17 @@ Nothing here is a product pitch. It is an instrument. See
 [docs/METHOD.md](docs/METHOD.md) for the doctrine and
 [docs/DETECTORS.md](docs/DETECTORS.md) for the current rule pack.
 
-## What M0 is
+## What is built
 
-The M0 spine: a hash-chained ledger, a filesystem/mailbox sweeper, fourteen
-deterministic (Lane-A) detectors, a ranked sweep report, a CLI, and a local
-FastAPI surface. It does not watch processes, ports, or network yet, and it
-does not conclude intent. It records and it reports.
+The M0 spine: a hash-chained ledger, a filesystem/mailbox sweeper, a ranked
+sweep report, a CLI, and a local FastAPI surface.
+
+M1 adds **ScannerBridge**: a builtin signature scanner (zero dependencies) and
+optional bridges to ClamAV and YARA, with scanner availability printed in
+every report.
+
+It does not watch processes, ports, or network yet, and it does not conclude
+intent. It records and it reports.
 
 ## The one rule that matters
 
@@ -80,6 +85,8 @@ use in a pipeline.
 | AW-F003 | high | magic-byte mismatch / double extension |
 | AW-S001 | medium | script obfuscation / execution markers |
 | AW-C001 | low | covert whitespace channel |
+| AW-M001 | critical | builtin signature match (EICAR, webshell, reverse shell, miner) |
+| AW-M002 | critical | external scanner match (ClamAV / YARA) |
 | AW-R001 | critical | frozen record mutated |
 | AW-T001 | medium | thinking / containment leak tokens |
 | AW-T002 | medium | prompt-injection / override markers |
@@ -111,16 +118,19 @@ reordering tests. Falsifier-first is the house rule.
 src/agentwatch/core/        schema, hashing, hash-chained ledger, sweep engine
 src/agentwatch/collectors/  filesystem (+ NTFS ADS), mail
 src/agentwatch/detectors/   the Lane-A rule pack
+src/agentwatch/scanners/    ScannerBridge (builtin, ClamAV, YARA)
 src/agentwatch/scoring/     severity ladder, ranking, report rendering
 src/agentwatch/cli/         the `aw` command
 src/agentwatch/api/         local FastAPI surface
+rules/yara/                 YARA rules loaded by the scanner bridge
 tests/                      falsifier fixtures
 docs/                       method and rule documentation
 ```
 
 ## Status
 
-M0. Next: ScannerBridge (ClamAV/YARA), richer rule packs, probe-pack port
-from the Crucible batteries, runtime collectors (process/port/exec), and the
-browser dashboard. Frozen-record anchoring lands before any of the
-"hidden danger" claims are made.
+M0 and M1 complete (ledger, sweepers, detector pack, ScannerBridge). Next:
+the Crucible probe-pack port, richer rule packs, runtime collectors
+(process/port/exec), Defender/AMSI bridge, and the browser dashboard.
+Frozen-record anchoring lands before any of the "hidden danger" claims are
+made.
