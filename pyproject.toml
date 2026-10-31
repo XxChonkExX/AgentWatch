@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agentwatch"
+version = "0.0.1"
+description = "Deterministic local monitoring for agent swarms: hash-chained ledger, sweepers, and a Lane-A detector pack."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Michael Harding" }]
+keywords = ["agents", "monitoring", "deterministic", "ledger", "sweep"]
+dependencies = []
+
+[project.optional-dependencies]
+api = ["fastapi", "uvicorn"]
+
+[project.scripts]
+aw = "agentwatch.cli.main:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+agentwatch = ["py.typed"]
