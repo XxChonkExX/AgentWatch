@@ -1,14 +1,37 @@
 name: tests
+
 on: [push, pull_request]
+
 jobs:
   test:
     strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python-version: ["3.10", "3.11", "3.12"]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Run test suite
+        run: python run_tests.py
+
+  api-smoke:
+    # The api extra is optional. This job proves it still installs, imports,
+    # and exposes a schema on a clean machine without pulling it into core.
+    strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
-        with: { python-version: ["3.10", "3.11", "3.12"] }
-      - run: python run_tests.py
-
+        with:
+          python-version: "3.12"
+      - name: Install with api extra
+        run: python -m pip install -e ".[api]"
+      - name: OpenAPI smoke
+        run: python scripts/api_smoke.py
