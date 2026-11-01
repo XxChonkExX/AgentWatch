@@ -171,8 +171,13 @@ class SignatureDatabase:
                 self.body_entries.append(BodyEntry(name, target, _parse_offset(offset_spec), rx))
         self.files.append(path)
 
-    def match(self, data: bytes):
-        """Yield (signature_name, kind, severity). kind in {hash, body}."""
+    def match_bytes(self, data: bytes):
+        """Yield (signature_name, kind, severity) using only the given bytes.
+
+        Hash entries are checked against the hash of `data` (sample-only), so
+        large files that were truncated will not match a hash signature here.
+        Use match_artifact when full-file provenance is available.
+        """
         size = len(data)
         md5 = hashlib.md5(data).hexdigest()
         sha256 = hashlib.sha256(data).hexdigest()
@@ -181,6 +186,21 @@ class SignatureDatabase:
                 continue
             if (e.algo == "md5" and e.digest == md5) or (e.algo == "sha256" and e.digest == sha256):
                 yield (e.name, "hash", "critical")
+        for e in self.body_entries:
+            if e.match(data):
+                yield (e.name, "body", "high")
+
+    def match_artifact(self, data: bytes, size: int, sha256_full, md5_full):
+        """Yield matches, preferring full-file hashes for hash entries."""
+        for e in self.hash_entries:
+            if e.size not in (-1, size):
+                continue
+            if e.algo == "md5":
+                if md5_full is not None and e.digest == md5_full:
+                    yield (e.name, "hash", "critical")
+            else:
+                if sha256_full is not None and e.digest == sha256_full:
+                    yield (e.name, "hash", "critical")
         for e in self.body_entries:
             if e.match(data):
                 yield (e.name, "body", "high")

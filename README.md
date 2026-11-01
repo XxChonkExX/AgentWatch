@@ -204,7 +204,7 @@ aw canary plant C:\data\vault --count 3      # plant deterministic exfil bait
 aw canary check C:\suspicious --registry C:\data\vault   # did the bait move?
 aw ledger loops ./aw-ledger                  # stuck-agent detection (AW-P007)
 aw otel serve --ledger ./aw-ledger           # OTLP/HTTP :4318 -> ledger
-```n
+```bash
 Any OpenTelemetry-instrumented agent framework (LangChain, pydantic-ai,
 OpenLLMetry, ...) can export OTLP/HTTP to the receiver; GenAI spans become
 ledger records. Canary digests are HMAC-keyed, so a leaked registry never

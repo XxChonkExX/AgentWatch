@@ -107,8 +107,11 @@ class FsCollector(Collector):
                 "unreadable",
                 {"error": str(exc)},
             )
+        import hashlib
+
         meta = {
             "streams": list_ads(str(p)),
             "hidden": self._hidden(p),
+            "md5": hashlib.md5(sample).hexdigest() if size <= SAMPLE_CAP else None,
         }
         return build_artifact("fs", str(p), p.name, sample, size, digest, meta)

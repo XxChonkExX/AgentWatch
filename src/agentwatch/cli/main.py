@@ -201,6 +201,10 @@ def cmd_serve(args) -> int:
         return 2
     import uvicorn
 
+    if args.host not in ("127.0.0.1", "localhost", "::1") and not args.i_understand:
+        print("refusing to bind %s: AgentWatch reads arbitrary local paths and runs scanners." % args.host)
+        print("re-run with --i-understand if you really want to expose it on a network interface.")
+        return 2
     freeze = load_manifest(args.freeze) if args.freeze else None
     app = create_app(
         ledger_dir=args.ledger,
@@ -514,6 +518,8 @@ def build_parser() -> argparse.ArgumentParser:
     sv.add_argument("--rules-dir", default=None)
     sv.add_argument("--sig-dir", default=None)
     sv.add_argument("--open", action="store_true", help="open the dashboard in a browser")
+    sv.add_argument("--i-understand", action="store_true",
+                    help="allow binding to a non-localhost interface (dangerous)")
     sv.set_defaults(func=cmd_serve)
 
     pp = sub.add_parser("probe", help="probe packs: run, score, review, freeze")

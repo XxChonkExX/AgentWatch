@@ -34,3 +34,11 @@ class Scanner(ABC):
     def scan_bytes(self, data: bytes, name: str) -> list[ScanHit]:
         """Return hits for a byte sequence. Must never raise on clean input."""
         raise NotImplementedError
+
+    def scan_artifact(self, artifact) -> list[ScanHit]:
+        """Scan an Artifact. Default delegates to scan_bytes over the sample.
+
+        Override when provenance (full-file hash, md5) is available and should
+        be preferred over scanning a capped sample.
+        """
+        return self.scan_bytes(artifact.sample, artifact.name)

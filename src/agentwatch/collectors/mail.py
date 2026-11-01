@@ -8,6 +8,7 @@ detector sample is capped.
 from __future__ import annotations
 
 import email
+import hashlib
 import mailbox
 from pathlib import Path
 from typing import Iterator
@@ -74,7 +75,8 @@ class MailCollector(Collector):
             combined[:SAMPLE_CAP],
             len(combined),
             hash_bytes(combined),
-            {"message_id": mid, "from": frm, "subject": subject, "part": "body"},
+            {"message_id": mid, "from": frm, "subject": subject, "part": "body",
+             "md5": hashlib.md5(combined).hexdigest()},
         )
 
         if msg.is_multipart():
@@ -100,5 +102,6 @@ class MailCollector(Collector):
                         "subject": subject,
                         "part": "attachment",
                         "filename": aname,
+                        "md5": hashlib.md5(payload).hexdigest(),
                     },
                 )

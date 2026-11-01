@@ -75,7 +75,7 @@ class ScannerDetector(Detector):
             if not s.available():
                 continue
             try:
-                hits = s.scan_bytes(artifact.sample, artifact.name)
+                hits = s.scan_artifact(artifact)
             except Exception:
                 continue
             for h in hits:
