@@ -80,6 +80,11 @@ class ScannerDetector(Detector):
                 continue
             for h in hits:
                 rule = _RULE_BY_SCANNER.get(s.name, AW_M002)
-                ev = [Evidence(path=artifact.path, note="%s @ %s" % (h.signature, h.version or "?"))]
+                note = "%s @ %s" % (h.signature, h.version or "?")
+                if artifact.meta.get("truncated"):
+                    # The collector kept only the first 4 MiB. Hash signatures
+                    # used the full-file digest; body rules did not see the rest.
+                    note += " (sample truncated at 4 MiB)"
+                ev = [Evidence(path=artifact.path, note=note)]
                 out.append(self.finding(rule, artifact, h.detail, ev, severity=h.severity))
         return out

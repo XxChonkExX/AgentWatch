@@ -13,21 +13,23 @@ from . import severity
 
 COVERAGE_LIMITS = """\
 - Sample cap: detectors see at most 4 MiB per artifact. Bytes beyond the cap
-  are hashed in full but not pattern-scanned.
+  are hashed in full (sha256 and, for small files, md5) but not pattern-scanned.
+  Hash signatures in a signature DB use the full-file digest; body/YARA rules
+  only see the prefix. A finding on a truncated artifact says so in its evidence.
 - Lexical gates (AW-S001, AW-T001/2/3) fire on quoted examples and on
   documentation about the behaviour itself. A hit is a signal, not a verdict.
 - Encoded operations split across artifacts, or performed in memory without
-  touching disk or mail, are invisible to the M0 filesystem/mail collectors.
-- Stream *content* is not read in M0; AW-F001 reports the presence of NTFS
-  alternate data streams, not what they contain.
-- Runtime activity (processes, ports, network, exec) is not collected in M0.
-  That is the M2/M4 milestone; until then, "hidden danger" claims are out of
-  scope and are not made.
+  touching disk or mail, are invisible to the filesystem/mail collectors.
+- Stream *content* is not read; AW-F001 reports the presence of NTFS alternate
+  data streams, not what they contain.
+- Runtime activity (processes, ports, network, exec) is not part of a sweep.
+  It is a separate snapshot diff (`aw posture`), which is itself point-in-time.
 - Signature scanning covers the builtin table plus whatever external scanners
   are installed (see the scanners block). A scanner listed unavailable did
   not run, and its absence is a blind spot in this report.
-- The ledger detects edits to the ledger file. It does not defend against an
-  attacker who rewrites the entire chain; external anchoring is not yet built.
+- The ledger detects edits to its segment files, including a deleted tail. It
+  does not defend against an attacker who rewrites every segment and the head;
+  that needs an anchor copy kept off this host (`aw ledger anchor`).
 - No capacity for intent. AgentWatch reports deterministic observations and
   ranks them. It does not conclude that an agent is malicious.
 """
@@ -66,6 +68,7 @@ def to_dict(result: SweepResult) -> dict:
         "detector_count": result.detector_count,
         "started_utc": result.started_utc,
         "finished_utc": result.finished_utc,
+        "timings": result.timings,
         "counts": severity.counts(result.findings),
         "scanner_status": result.scanner_status,
         "findings": [f.to_dict() if hasattr(f, "to_dict") else dict(f) for f in ranked],
@@ -96,6 +99,12 @@ def render_text(result: SweepResult, rule_filter: str | None = None) -> str:
     )
     if rule_filter:
         lines.append("rule filter : %s" % rule_filter)
+    t = result.timings or {}
+    if t:
+        lines.append(
+            "timing      : collect=%.2fs detect=%.2fs ledger=%.2fs"
+            % (t.get("collect_s", 0.0), t.get("detect_s", 0.0), t.get("ledger_s", 0.0))
+        )
     lines.append("")
 
     if not ranked:
@@ -148,8 +157,10 @@ POSTURE_LIMITS = """\
 - A snapshot is a point-in-time picture from the OS's own APIs. A process can
   hide from default enumeration (rootkits, kernel callbacks); absence here is
   not evidence of absence.
-- Process identity is executable path (or name). A replaced binary at the same
-  path is not detected by the diff; hash executables to catch that.
+- Process identity is executable path, and for non-system paths a sha256 image
+  hash (AW-P006). System directories are not hashed, so a replaced system
+  binary is invisible to this diff. `--no-hash-images` turns the hash off
+  entirely and makes that blind spot larger.
 - Linux connections are not attributed to a pid here (no /proc/<pid>/fd walk).
 - Kernel drivers (Windows) and modules (Linux) are listed, not verified.
 - UDP egress, raw sockets, and non-INET families are not fully enumerated.

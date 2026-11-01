@@ -7,6 +7,7 @@ its findings into the record.
 
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Iterable, Sequence
@@ -30,6 +31,7 @@ class SweepResult:
     started_utc: str = ""
     finished_utc: str = ""
     scanner_status: dict = field(default_factory=dict)
+    timings: dict = field(default_factory=dict)
 
 
 class SweepEngine:
@@ -55,41 +57,59 @@ class SweepEngine:
 
     def sweep(self, collector, target: str) -> SweepResult:
         started = utcnow()
-        if self.ledger is not None:
-            self.ledger.append(
-                {
-                    "action": "sweep_start",
-                    "target": target,
-                    "collector": getattr(collector, "name", "unknown"),
-                    "detectors": len(self.detectors),
-                }
-            )
+        timings = {"collect_s": 0.0, "detect_s": 0.0, "ledger_s": 0.0}
+        ledger = self.ledger
+
+        def record(rec: dict) -> None:
+            if ledger is None:
+                return
+            t0 = time.perf_counter()
+            ledger.append(rec)
+            timings["ledger_s"] += time.perf_counter() - t0
+
+        record(
+            {
+                "action": "sweep_start",
+                "target": target,
+                "collector": getattr(collector, "name", "unknown"),
+                "detectors": len(self.detectors),
+            }
+        )
 
         findings: list[Finding] = []
         artifacts = 0
         total_bytes = 0
 
-        for artifact in collector.collect(target):
+        stream = collector.collect(target)
+        while True:
+            t0 = time.perf_counter()
+            try:
+                artifact = next(stream)
+            except StopIteration:
+                timings["collect_s"] += time.perf_counter() - t0
+                break
+            timings["collect_s"] += time.perf_counter() - t0
+
             artifacts += 1
             total_bytes += artifact.size
-            if self.ledger is not None:
-                self.ledger.append(
-                    {
-                        "action": "read",
-                        "source": artifact.kind,
-                        "target": artifact.path,
-                        "target_sha256": artifact.sha256,
-                        "size": artifact.size,
-                    }
-                )
+            record(
+                {
+                    "action": "read",
+                    "source": artifact.kind,
+                    "target": artifact.path,
+                    "target_sha256": artifact.sha256,
+                    "size": artifact.size,
+                }
+            )
+            t0 = time.perf_counter()
             for detector in self.detectors:
                 for finding in detector.run(artifact):
                     findings.append(finding)
-                    if self.ledger is not None:
-                        rec = finding.to_dict()
-                        rec["action"] = "finding"
-                        rec["artifact_sha256"] = artifact.sha256
-                        self.ledger.append(rec)
+                    rec = finding.to_dict()
+                    rec["action"] = "finding"
+                    rec["artifact_sha256"] = artifact.sha256
+                    record(rec)
+            timings["detect_s"] += time.perf_counter() - t0
 
         finished = utcnow()
         scanner_status = self._scanner_status()
@@ -103,17 +123,17 @@ class SweepEngine:
             started_utc=started,
             finished_utc=finished,
             scanner_status=scanner_status,
+            timings={k: round(v, 4) for k, v in timings.items()},
         )
-        if self.ledger is not None:
-            self.ledger.append(
-                {
-                    "action": "sweep_end",
-                    "target": target,
-                    "artifacts": artifacts,
-                    "findings": len(findings),
-                    "scanner_status": scanner_status,
-                }
-            )
+        record(
+            {
+                "action": "sweep_end",
+                "target": target,
+                "artifacts": artifacts,
+                "findings": len(findings),
+                "scanner_status": scanner_status,
+            }
+        )
         return result
 
 
