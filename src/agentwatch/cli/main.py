@@ -311,7 +311,7 @@ def cmd_probe_review(args) -> int:
 
 
 def cmd_snapshot(args) -> int:
-    snap = collect_snapshot(args.backend, hash_images=args.hash_images)
+    snap = collect_snapshot(args.backend, hash_images=not args.no_hash_images)
     if args.out:
         with open(args.out, "w", encoding="utf-8", newline="\n") as fh:
             json.dump(snap.to_dict(), fh, indent=2, sort_keys=True)
@@ -346,7 +346,7 @@ def cmd_posture(args) -> int:
         print("backend mismatch: baseline=%s current=%s (use --force to override)"
               % (base.backend, resolved))
         return 2
-    cur = collect_snapshot(args.backend, hash_images=args.hash_images)
+    cur = collect_snapshot(args.backend, hash_images=not args.no_hash_images)
     diff = diff_snapshots(base, cur)
     findings = posture_analyze(
         diff,
@@ -564,7 +564,7 @@ def build_parser() -> argparse.ArgumentParser:
     sn = sub.add_parser("snapshot", help="capture a runtime snapshot (baseline)")
     sn.add_argument("--out", default=None, help="write snapshot JSON here")
     sn.add_argument("--backend", choices=["auto", "psutil", "windows", "linux"], default="auto")
-    sn.add_argument("--hash-images", action="store_true", help="sha256 each distinct process image (slower; enables AW-P006)")
+    sn.add_argument("--no-hash-images", action="store_true", help="skip image hashing (faster baseline)")
     sn.add_argument("--json", action="store_true")
     sn.set_defaults(func=cmd_snapshot)
 
@@ -577,7 +577,7 @@ def build_parser() -> argparse.ArgumentParser:
     po.add_argument("--include-loopback", action="store_true")
     po.add_argument("--scan-all", action="store_true", help="suspicion-check every process, not just new ones")
     po.add_argument("--force", action="store_true", help="diff even if baseline backend differs")
-    po.add_argument("--hash-images", action="store_true", help="sha256 process images this pass (needs baseline taken the same way for AW-P006)")
+    po.add_argument("--no-hash-images", action="store_true", help="skip image hashing this pass")
     po.add_argument("--fail-on", choices=["none", "info", "low", "medium", "high", "critical"], default="none")
     po.add_argument("--json", action="store_true")
     po.set_defaults(func=cmd_posture)

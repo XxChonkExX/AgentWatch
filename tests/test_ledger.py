@@ -54,5 +54,34 @@ class LedgerChain(unittest.TestCase):
         self.assertFalse(ok)
 
 
+class Segmentation(unittest.TestCase):
+    def test_rotation_and_cross_segment_chain(self):
+        d = tempfile.mkdtemp()
+        led = Ledger.init(d)
+        for i in range(1005):
+            led.append({"action": "read", "target": str(i)})
+        ok, problems = led.verify()
+        self.assertTrue(ok, problems)
+        self.assertEqual(sum(1 for _ in led.read_all()), 1005)
+        # at least two segment files
+        segs = [p for p in os.listdir(d) if p.startswith("ledger_") and p.endswith(".jsonl")]
+        self.assertGreaterEqual(len(segs), 2)
+        # get works across segments
+        self.assertEqual(led.get(1)["target"], "0")
+        self.assertEqual(led.get(1005)["target"], "1004")
+        self.assertEqual(led.get(1000)["target"], "999")
+
+    def test_head_index_used(self):
+        d = tempfile.mkdtemp()
+        led = Ledger.init(d)
+        led.append({"action": "read", "target": "a"})
+        # head.json exists and matches
+        import json
+        head = json.loads(open(os.path.join(d, "head.json")).read())
+        self.assertEqual(head["seq"], 1)
+        # _last via head
+        self.assertEqual(led._last(), (1, head["hash"]))
+
+
 if __name__ == "__main__":
     unittest.main()

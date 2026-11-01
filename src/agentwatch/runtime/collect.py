@@ -302,11 +302,22 @@ class PsutilCollector:
         )
 
 
-def attach_image_hashes(snapshot: RuntimeSnapshot) -> RuntimeSnapshot:
-    """Fill ProcessInfo.image_sha256, hashing each distinct exe once.
+SYSTEM_EXE_PREFIXES = (
+    "c:/windows/", "c:/program files/windowsapps/",
+    "/usr/bin/", "/usr/lib/", "/usr/sbin/", "/bin/", "/sbin/", "/lib/",
+    "/lib64/", "/usr/share/",
+)
 
-    Replaces processes whose exe can be read; leaves others untouched. Cost
-    is bounded by the number of distinct executable paths, not processes.
+
+def is_system_exe(path: str) -> bool:
+    p = (path or "").replace("\\", "/").lower()
+    return any(p.startswith(pref) for pref in SYSTEM_EXE_PREFIXES)
+
+
+def attach_image_hashes(snapshot: RuntimeSnapshot) -> RuntimeSnapshot:
+    """Fill ProcessInfo.image_sha256 for non-system executables, hashing each
+    distinct path once. System executables are skipped (cheap, low-value, and
+    they churn across OS updates); user/third-party binaries are the targets.
     """
     from ..core.hashing import hash_file
 
@@ -315,7 +326,7 @@ def attach_image_hashes(snapshot: RuntimeSnapshot) -> RuntimeSnapshot:
     for p in snapshot.processes:
         digest = p.image_sha256
         exe = p.exe
-        if exe and os.path.isfile(exe):
+        if exe and not is_system_exe(exe) and os.path.isfile(exe):
             key = exe.lower()
             if key not in cache:
                 try:
@@ -332,7 +343,7 @@ def attach_image_hashes(snapshot: RuntimeSnapshot) -> RuntimeSnapshot:
     )
 
 
-def collect_snapshot(backend: str = "auto", hash_images: bool = False) -> RuntimeSnapshot:
+def collect_snapshot(backend: str = "auto", hash_images: bool = True) -> RuntimeSnapshot:
     if backend == "psutil":
         snap = PsutilCollector().collect()
     elif backend == "windows":
