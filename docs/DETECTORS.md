@@ -72,9 +72,10 @@ to 32 without hiding a single hit.
 
 ## Coverage gaps (M0)
 
-See the `coverage & limits` block in every report. In brief: no runtime
-activity (process/port/network/exec), no NTFS stream content, no anchoring of
-the ledger against full-file rewrite, no lane-B classifier.
+See the `coverage & limits` block in every report. In brief: no NTFS stream
+content, no lane-B classifier, and a ledger that is only as anchored as the
+last anchor copy kept off the host. Runtime posture arrived in M3 and is a
+snapshot, not a tap -- see [RUNTIME.md](RUNTIME.md).
 
 ## ScannerBridge (M1)
 

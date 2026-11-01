@@ -73,6 +73,10 @@ aw sweep "D:\work\agent-workspace" --ledger ./aw-ledger
 # verify nothing in the ledger was edited
 aw ledger verify ./aw-ledger
 
+# pin the chain head, copy the file to another machine, verify against it later
+aw ledger anchor ./aw-ledger
+aw ledger verify ./aw-ledger --anchor /media/usb/anchor_seq000042.json
+
 # list rules and run a specific rule's falsifier
 aw rule list
 aw rule test AW-F003
@@ -118,10 +122,11 @@ Details and falsifiers: [docs/DETECTORS.md](docs/DETECTORS.md).
 
 Every report prints its own coverage and limits. Read them. In short: the
 detectors see at most 4 MiB per file; lexical gates fire on quoted examples;
-encoded operations that never touch disk or mail are invisible at M0; NTFS
-stream content is not read; runtime activity is not collected yet; the ledger
-detects edits to the ledger file but is not yet externally anchored. A clean
-report is not a clearance.
+encoded operations that never touch disk or mail are invisible; NTFS stream
+content is not read; runtime posture is a snapshot, so activity between
+snapshots is invisible; the ledger detects edits to its segment files but is
+only as anchored as the last anchor copy you kept off the host. A clean report
+is not a clearance.
 
 ## Tests
 
@@ -171,8 +176,8 @@ aw serve --ledger ./aw-ledger --open
 Opens `http://127.0.0.1:8018/` -- a local, zero-build dashboard (single HTML
 file, vanilla JS, no CDN) over the same engine the CLI uses: sweep, posture
 diff, probe run/score/review, the ledger, and the rule/scanner registry.
-Binds to 127.0.0.1 by design; do not expose it -- the endpoints sweep
-arbitrary local paths on purpose.
+Binds to 127.0.0.1 by design and refuses any other interface unless you pass
+`--i-understand`: the endpoints sweep arbitrary local paths on purpose.
 
 ## Runtime posture
 
@@ -181,6 +186,9 @@ aw snapshot --out baseline.json          # capture the host (baseline)
 aw posture --baseline baseline.json      # diff current host against it
 aw posture --baseline baseline.json --scan-all --fail-on high
 ```
+
+Process images outside system directories are hashed by default so a binary
+replaced at a known path shows up as AW-P006; `--no-hash-images` skips it.
 
 Backends: `psutil` (optional extra), `windows` (PowerShell), `linux` (/proc).
 The backend is recorded in the snapshot; posture refuses to diff across
@@ -192,10 +200,15 @@ M0-M4 complete: ledger, sweepers, detector pack, ScannerBridge with open
 signature DBs, the Crucible probe-pack port, runtime posture, and the local
 dashboard. Calibrated against a real 742-file agent mailbox (149 raw findings
 to 32, nothing hidden) and live-tested on Windows and Linux/WSL (real
-listeners caught high on both). Remaining: Defender/AMSI bridge, executable
-hashing for process identity, and ledger anchoring -- anchoring lands before
-any "hidden danger" claim is strengthened beyond what the snapshot diff can
-honestly see.
+listeners caught high on both). Since then: Defender bridge, executable image
+hashing on by default, segmented ledger with a head index, external anchoring
+with a documented two-box runbook, canaries, loop detection, and OTLP ingest.
+
+Still open, in order of leverage: a caged ReAct swarm harness for live
+behavioral probes (the probe packs are scored against transcripts and model
+endpoints, not yet against a running multi-agent loop); anchor signing with a
+key held off the agent host; and Linux pid attribution for network
+connections. None of that changes what a clean report means today.
 
 ## Canary tokens, loop detection, and OTLP ingest
 

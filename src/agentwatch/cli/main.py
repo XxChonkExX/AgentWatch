@@ -99,8 +99,7 @@ def cmd_ledger_verify(args) -> int:
     led = Ledger(args.dir)
     ok, problems = led.verify()
     if ok:
-        n = sum(1 for _ in led.read_all())
-        print("OK: %d record(s), chain intact" % n)
+        print("OK: %d record(s), chain intact" % led.anchor_head()["records"])
     else:
         print("TAMPERED: %d problem(s)" % len(problems))
         for p in problems:
@@ -122,12 +121,19 @@ def cmd_ledger_verify(args) -> int:
 def cmd_ledger_anchor(args) -> int:
     led = Ledger(args.dir)
     doc = led.anchor_head()
-    out = args.out or os.path.join(args.dir, "head.json")
+    # Never write the anchor over head.json: that file is the live tail index.
+    if args.out:
+        out = args.out
+    else:
+        adir = os.path.join(args.dir, "anchors")
+        os.makedirs(adir, exist_ok=True)
+        out = os.path.join(adir, "anchor_seq%06d.json" % doc["seq"])
     with open(out, "w", encoding="utf-8", newline="\n") as fh:
         json.dump(doc, fh, indent=2, sort_keys=True)
         fh.write("\n")
     print("anchored: seq=%s hash=%s -> %s" % (doc["seq"], doc["hash"][:16], out))
-    print("store this file somewhere the ledger cannot reach (second box, cold storage).")
+    print("copy this file somewhere the ledger host cannot reach (second box, cold storage),")
+    print("then verify against it: aw ledger verify <dir> --anchor <that copy>")
     return 0
 
 
@@ -477,11 +483,12 @@ def build_parser() -> argparse.ArgumentParser:
     li.set_defaults(func=cmd_ledger_init)
     lv = lsub.add_parser("verify", help="verify a ledger chain")
     lv.add_argument("dir")
-    lv.add_argument("--anchor", default=None, help="head.json from `ledger anchor`")
+    lv.add_argument("--anchor", default=None, help="anchor JSON from `ledger anchor` (kept off-box)")
     lv.set_defaults(func=cmd_ledger_verify)
     la = lsub.add_parser("anchor", help="write an anchor document for the chain head")
     la.add_argument("dir")
-    la.add_argument("--out", default=None)
+    la.add_argument("--out", default=None,
+                    help="destination (default: <dir>/anchors/anchor_seqNNNNNN.json)")
     la.set_defaults(func=cmd_ledger_anchor)
 
     sw = sub.add_parser("sweep", help="sweep a path or mailbox")

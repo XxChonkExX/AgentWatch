@@ -52,14 +52,24 @@ survived long enough to be believed.
 
 The ledger is append-only and hash-chained. Each record's hash covers the
 record before it, so any edit, deletion, or reorder breaks the chain at a
-named sequence number. What the ledger guarantees and what it does not:
+named sequence number. Records live in bounded segment files
+(`ledger_000000.jsonl`, 1000 records each); the segment for a sequence number
+is arithmetic, so append and lookup stay flat as the ledger grows. A
+`head.json` sidecar caches the tail and is checked against the actual tail on
+every append.
 
-- It guarantees that a change to the ledger *file* is detectable.
-- It does not guarantee anything against an attacker who rewrites the whole
-  chain. That requires an external anchor, which is a later milestone.
+What the ledger guarantees and what it does not:
 
-Anchoring lands before any claim that the record is trustworthy against a
-capable adversary. Until then, say so.
+- It guarantees that a change to a ledger *segment* is detectable, including a
+  deleted tail (the head index notices a chain that ends early).
+- It does not guarantee anything against an attacker who rewrites every
+  segment and the head together. That requires an external anchor.
+
+Anchoring is implemented (`aw ledger anchor`, `aw ledger verify --anchor`). An
+anchor stored on the same host as the ledger is defeated by the same attacker,
+so the anchor is only load-bearing when it is copied somewhere the ledger host
+cannot reach. The two-box runbook is in
+[docs/THREAT_MODEL.md](THREAT_MODEL.md#operationalizing-the-anchor).
 
 ## What AgentWatch does not do
 
