@@ -197,6 +197,10 @@ def build_artifact(
     m = dict(meta or {})
     m["encoding"] = encoding
     m["truncated"] = size > SAMPLE_CAP
+    if size <= SAMPLE_CAP:
+        import hashlib
+
+        m.setdefault("md5", hashlib.md5(sample).hexdigest())
     return Artifact(
         kind=kind,
         path=path,

@@ -90,14 +90,10 @@ class Ledger:
         return led
 
     def _write_head(self, seq: int, digest: str) -> None:
-        tmp = self.head_path.with_suffix(".json.tmp")
-        tmp.write_text(
-            json.dumps({"seq": seq, "hash": digest}, sort_keys=True) + "\n",
-            encoding="utf-8",
-        )
-        with open(tmp, "rb") as fh:
+        with open(self.head_path, "w", encoding="utf-8") as fh:
+            fh.write(json.dumps({"seq": seq, "hash": digest}, sort_keys=True) + "\n")
+            fh.flush()
             os.fsync(fh.fileno())
-        os.replace(tmp, self.head_path)
 
     def _read_head(self) -> tuple[int, str] | None:
         if not self.head_path.exists():
